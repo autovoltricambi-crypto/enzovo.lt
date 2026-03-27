@@ -16,7 +16,7 @@ from tools.wordpress_write import (
     crea_struttura_categorie,
     aggiungi_attributi_prodotto,
 )
-from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web
+from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web, accedi_portale_b2b
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
 from tools.csv_export import esporta_csv
 from tools.memoria import (
@@ -225,7 +225,31 @@ TOOLS = [
             "required": ["url", "obiettivo"],
         },
     },
-    # --- Cataloghi B2B ---
+    # --- Portali B2B autenticati ---
+    {
+        "name": "accedi_portale_b2b",
+        "description": (
+            "Accede a un portale B2B usando le credenziali salvate nel .env (NON le chiede all'utente) "
+            "e completa l'obiettivo specificato. "
+            "Usalo per: AZ Car B2B, Elring, Corteco, Valeo, AutoDoc o qualsiasi portale configurato. "
+            "Es: portale='azcar', obiettivo='cerca filtri olio BMW e dammi prezzi e codici'"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "portale": {
+                    "type": "string",
+                    "description": "Chiave portale: 'azcar', 'elring', 'corteco', 'valeo', 'autodoc'",
+                },
+                "obiettivo": {
+                    "type": "string",
+                    "description": "Cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 con prezzi')",
+                },
+            },
+            "required": ["portale", "obiettivo"],
+        },
+    },
+    # --- Cataloghi B2B (navigazione pubblica) ---
     {
         "name": "cerca_tutti_cataloghi",
         "description": "Cerca un prodotto su TUTTI i cataloghi B2B (Elring, Corteco, Valeo, AutoDoc) in parallelo.",
@@ -396,6 +420,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return await ispeziona_pagina_elementor(**input_dict)
     elif name == "lista_pagine_elementor":
         return await lista_pagine_elementor()
+    elif name == "accedi_portale_b2b":
+        return await accedi_portale_b2b(**input_dict)
     elif name == "naviga_web":
         return await naviga_web(**input_dict)
     elif name == "cerca_tutti_cataloghi":

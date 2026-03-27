@@ -102,6 +102,56 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         }
 
 
+async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
+    """
+    Accede a un portale B2B usando le credenziali salvate nel .env e completa
+    l'obiettivo specificato. L'agente NON chiede credenziali in chat.
+
+    portale: chiave del portale (es: 'azcar', 'elring', 'corteco', 'valeo', 'autodoc')
+    obiettivo: cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 e restituisci prezzi')
+    """
+    from browser_use import Agent
+    from langchain_anthropic import ChatAnthropic
+
+    portale_key = portale.lower().replace(" ", "")
+    info = Config.PORTALI_B2B.get(portale_key)
+
+    if not info:
+        disponibili = list(Config.PORTALI_B2B.keys())
+        return {"errore": f"Portale '{portale}' non configurato. Disponibili: {disponibili}"}
+
+    if not info["url"]:
+        return {"errore": f"URL per '{portale}' non configurato nel .env"}
+
+    # Costruisce il task con credenziali iniettate — l'agente non le mostra in chat
+    task_parts = [f"Vai su {info['url']}."]
+
+    if info["user"] and info["password"]:
+        task_parts.append(
+            f"Se richiesto, accedi con username '{info['user']}' e password '{info['password']}'. "
+            "Non chiedere conferma all'utente."
+        )
+
+    task_parts.append(obiettivo)
+    task_parts.append("Rispondi in italiano con i dati trovati.")
+
+    llm = ChatAnthropic(
+        model="claude-haiku-4-5-20251001",
+        api_key=Config.ANTHROPIC_API_KEY,
+    )
+
+    agent = Agent(task=" ".join(task_parts), llm=llm)
+
+    try:
+        history = await agent.run(max_steps=30)
+        return {
+            "portale": info["nome"],
+            "risultato": history.final_result() or "Nessun risultato.",
+        }
+    except Exception as e:
+        return {"portale": info["nome"], "errore": str(e)}
+
+
 async def naviga_web(url: str, obiettivo: str) -> dict:
     """
     Naviga qualsiasi URL con browser-use ed esegue l'obiettivo specificato.
