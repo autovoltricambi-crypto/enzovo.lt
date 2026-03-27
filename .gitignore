@@ -1,0 +1,30 @@
+# Variabili ambiente — NON committare mai questo file
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Ambienti virtuali
+.venv/
+venv/
+env/
+
+# Dati generati a runtime
+data/
+exports/
+*.csv
+
+# Playwright
+.playwright/
+
+# IDE
+.vscode/
+.idea/
+*.swp
