@@ -12,6 +12,11 @@ class Config:
     HOST = os.getenv("HOST", "127.0.0.1")
     PORT = int(os.getenv("PORT", "8000"))
 
+    # WordPress / WooCommerce
+    WP_URL = os.getenv("WP_URL", "")
+    WP_USER = os.getenv("WP_USER", "")
+    WP_PASSWORD = os.getenv("WP_PASSWORD", "")
+
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, "data")
     EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
