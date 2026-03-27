@@ -1,6 +1,5 @@
 import json
 import asyncio
-from typing import Optional
 from anthropic import AsyncAnthropic
 
 from config import Config
@@ -13,11 +12,21 @@ from tools.wordpress_write import (
     lista_prodotti,
     ispeziona_pagina_elementor,
     lista_pagine_elementor,
+    importa_prodotti_bulk,
+    crea_struttura_categorie,
+    aggiungi_attributi_prodotto,
 )
-from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo
+from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
 from tools.csv_export import esporta_csv
-from tools.memoria import salva_ricerca, cerca_in_memoria, salva_nota
+from tools.memoria import (
+    salva_ricerca,
+    cerca_in_memoria,
+    salva_nota,
+    aggiorna_contesto_sito,
+    leggi_contesto_sito,
+    carica_contesto_agente,
+)
 
 Config.validate()
 
@@ -28,232 +37,226 @@ client = AsyncAnthropic(api_key=Config.ANTHROPIC_API_KEY)
 # ==========================================
 
 TOOLS = [
+    # --- WordPress / WooCommerce ---
     {
         "name": "crea_prodotto",
-        "description": "Crea un nuovo prodotto WooCommerce nel sito WordPress. Utile per aggiungere ricambi con titolo, prezzo, descrizione, stock, categoria.",
+        "description": "Crea un nuovo prodotto WooCommerce nel sito.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "nome": {
-                    "type": "string",
-                    "description": "Nome del prodotto (es: 'Guarnizione Testata BMW N47')",
-                },
-                "prezzo": {
-                    "type": "number",
-                    "description": "Prezzo di listino (es: 45.50)",
-                },
-                "descrizione": {
-                    "type": "string",
-                    "description": "Descrizione dettagliata del prodotto",
-                },
-                "sku": {
-                    "type": "string",
-                    "description": "SKU/codice prodotto unico (es: 'GUAR-BMW-N47-001')",
-                },
-                "stock": {
-                    "type": "integer",
-                    "description": "Quantità in stock (default: 0)",
-                },
-                "categoria": {
-                    "type": "string",
-                    "description": "Nome categoria (es: 'Guarnizioni', 'Filtri', 'Oli')",
-                },
+                "nome": {"type": "string", "description": "Nome del prodotto"},
+                "prezzo": {"type": "number", "description": "Prezzo di listino"},
+                "descrizione": {"type": "string", "description": "Descrizione dettagliata"},
+                "sku": {"type": "string", "description": "Codice SKU unico"},
+                "stock": {"type": "integer", "description": "Quantità in stock (default: 0)"},
+                "categoria": {"type": "string", "description": "Nome categoria (es: 'Filtri Olio')"},
             },
             "required": ["nome", "prezzo", "descrizione", "sku"],
         },
     },
     {
         "name": "modifica_prodotto",
-        "description": "Modifica i dettagli di un prodotto esistente (titolo, prezzo, descrizione, stock, ecc.)",
+        "description": "Modifica un prodotto WooCommerce esistente.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "product_id": {
-                    "type": "integer",
-                    "description": "ID del prodotto da modificare",
-                },
-                "nome": {
-                    "type": "string",
-                    "description": "Nuovo nome (opzionale)",
-                },
-                "prezzo": {
-                    "type": "number",
-                    "description": "Nuovo prezzo (opzionale)",
-                },
-                "descrizione": {
-                    "type": "string",
-                    "description": "Nuova descrizione (opzionale)",
-                },
-                "stock": {
-                    "type": "integer",
-                    "description": "Nuovo stock (opzionale)",
-                },
+                "product_id": {"type": "integer", "description": "ID del prodotto"},
+                "nome": {"type": "string"},
+                "prezzo": {"type": "number"},
+                "descrizione": {"type": "string"},
+                "stock": {"type": "integer"},
             },
             "required": ["product_id"],
         },
     },
     {
-        "name": "crea_pagina_html",
-        "description": "Crea una nuova pagina HTML nel sito WordPress. Utile per creare landing page, pagine di prodotto personalizzate, guide.",
+        "name": "importa_prodotti_bulk",
+        "description": (
+            "Importa una lista di prodotti in WooCommerce in una sola chiamata (batch da 5 in parallelo). "
+            "Usa questo invece di chiamare crea_prodotto N volte. "
+            "Ogni prodotto deve avere: nome, prezzo, descrizione, sku. "
+            "Opzionali: stock, categoria, attributi (dict con marca_auto/modello/anno/codice_oe)."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "titolo": {
-                    "type": "string",
-                    "description": "Titolo della pagina (es: 'Catalogo BMW Ricambi')",
+                "prodotti": {
+                    "type": "array",
+                    "description": "Lista di prodotti da importare",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nome": {"type": "string"},
+                            "prezzo": {"type": "number"},
+                            "descrizione": {"type": "string"},
+                            "sku": {"type": "string"},
+                            "stock": {"type": "integer"},
+                            "categoria": {"type": "string"},
+                            "attributi": {"type": "object"},
+                        },
+                        "required": ["nome", "prezzo", "descrizione", "sku"],
+                    },
+                }
+            },
+            "required": ["prodotti"],
+        },
+    },
+    {
+        "name": "crea_struttura_categorie",
+        "description": (
+            "Crea un albero di categorie WooCommerce rispettando la gerarchia. "
+            "Usa per impostare la struttura del sito simile ad AutoDoc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "categorie": {
+                    "type": "array",
+                    "description": "Lista categorie con nome e parent opzionale",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nome": {"type": "string"},
+                            "parent": {"type": "string", "description": "Nome categoria parent (null se radice)"},
+                        },
+                        "required": ["nome"],
+                    },
+                }
+            },
+            "required": ["categorie"],
+        },
+    },
+    {
+        "name": "aggiungi_attributi_prodotto",
+        "description": "Aggiunge attributi a un prodotto (compatibilità veicolo, codice OE, marca auto, ecc.).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "integer", "description": "ID prodotto"},
+                "attributi": {
+                    "type": "object",
+                    "description": "Dict con attributi es: {\"marca_auto\": \"BMW\", \"modello\": \"Serie 3\", \"codice_oe\": \"11427566327\"}",
                 },
-                "contenuto_html": {
-                    "type": "string",
-                    "description": "Contenuto HTML completo della pagina (può includere CSS inline, div, tabelle, ecc.)",
-                },
-                "slug": {
-                    "type": "string",
-                    "description": "Slug URL (opzionale, es: 'catalogo-bmw')",
-                },
-                "stato": {
-                    "type": "string",
-                    "enum": ["draft", "publish"],
-                    "description": "Stato pagina: 'draft' (bozza) o 'publish' (pubblica)",
-                },
+            },
+            "required": ["product_id", "attributi"],
+        },
+    },
+    {
+        "name": "lista_prodotti",
+        "description": "Elenca prodotti WooCommerce con filtri opzionali.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string"},
+                "categoria": {"type": "string"},
+                "limit": {"type": "integer", "description": "Max risultati (default 100)"},
+            },
+        },
+    },
+    {
+        "name": "crea_pagina_html",
+        "description": "Crea una nuova pagina HTML nel sito WordPress.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string"},
+                "contenuto_html": {"type": "string"},
+                "slug": {"type": "string"},
+                "stato": {"type": "string", "enum": ["draft", "publish"]},
             },
             "required": ["titolo", "contenuto_html"],
         },
     },
     {
         "name": "scrivi_pagina_html",
-        "description": "Modifica il contenuto HTML di una pagina WordPress esistente. Può anche modificare titolo e stato (bozza/pubblicata).",
+        "description": "Modifica il contenuto HTML di una pagina WordPress esistente.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "page_id": {
-                    "type": "integer",
-                    "description": "ID della pagina da modificare",
-                },
-                "contenuto_html": {
-                    "type": "string",
-                    "description": "Nuovo contenuto HTML",
-                },
-                "titolo": {
-                    "type": "string",
-                    "description": "Nuovo titolo (opzionale)",
-                },
-                "stato": {
-                    "type": "string",
-                    "enum": ["draft", "publish"],
-                    "description": "Stato pagina: 'draft' (bozza) o 'publish' (pubblica) — opzionale",
-                },
+                "page_id": {"type": "integer"},
+                "contenuto_html": {"type": "string"},
+                "titolo": {"type": "string"},
+                "stato": {"type": "string", "enum": ["draft", "publish"]},
             },
             "required": ["page_id", "contenuto_html"],
         },
     },
     {
         "name": "leggi_pagina_html",
-        "description": "Legge il contenuto HTML di una pagina WordPress prima di modificarla.",
+        "description": "Legge il contenuto HTML di una pagina WordPress.",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "page_id": {
-                    "type": "integer",
-                    "description": "ID della pagina da leggere",
-                },
-            },
-            "required": ["page_id"],
-        },
-    },
-    {
-        "name": "lista_prodotti",
-        "description": "Elenca i prodotti nel sito con filtri opzionali per categoria o search.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "search": {
-                    "type": "string",
-                    "description": "Parola chiave per cercare (es: 'guarnizione')",
-                },
-                "categoria": {
-                    "type": "string",
-                    "description": "Filtra per categoria (opzionale)",
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Max risultati (default 100)",
-                },
-            },
-        },
-    },
-    {
-        "name": "ispeziona_pagina_elementor",
-        "description": "Legge i metadati Elementor di una pagina per ispezionarla. Utile prima di decidere se ricrearla in HTML.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "page_id": {
-                    "type": "integer",
-                    "description": "ID della pagina da ispezionare",
-                },
-            },
+            "properties": {"page_id": {"type": "integer"}},
             "required": ["page_id"],
         },
     },
     {
         "name": "lista_pagine_elementor",
-        "description": "Lista tutte le pagine del sito, distinguendo tra quelle create con Elementor e quelle in HTML puro.",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-        },
+        "description": "Lista tutte le pagine del sito, distinguendo Elementor da HTML puro.",
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
-        "name": "cerca_tutti_cataloghi",
-        "description": "Ricerca un prodotto su TUTTI i cataloghi B2B (Elring, Corteco, Valeo, AutoDoc). Restituisce prezzi comparati.",
+        "name": "ispeziona_pagina_elementor",
+        "description": "Legge i metadati Elementor di una pagina specifica.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"page_id": {"type": "integer"}},
+            "required": ["page_id"],
+        },
+    },
+    # --- Navigazione Web ---
+    {
+        "name": "naviga_web",
+        "description": (
+            "Naviga qualsiasi sito web con un browser reale e completa l'obiettivo specificato. "
+            "Usa per: analizzare AutoDoc e altri competitor, estrarre strutture/categorie/prezzi, "
+            "leggere pagine di fornitori, raccogliere dati da qualsiasi sito. "
+            "Non limitato ai cataloghi B2B — funziona su qualsiasi URL."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
+                "url": {"type": "string", "description": "URL del sito da visitare"},
+                "obiettivo": {
                     "type": "string",
-                    "description": "Nome prodotto, codice OE o descrizione (es: 'guarnizione testata BMW')",
+                    "description": "Cosa fare/estrarre. Es: 'Elenca le categorie principali', 'Trova prezzi filtri olio BMW'",
                 },
             },
+            "required": ["url", "obiettivo"],
+        },
+    },
+    # --- Cataloghi B2B ---
+    {
+        "name": "cerca_tutti_cataloghi",
+        "description": "Cerca un prodotto su TUTTI i cataloghi B2B (Elring, Corteco, Valeo, AutoDoc) in parallelo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Prodotto da cercare"}},
             "required": ["query"],
         },
     },
     {
         "name": "cerca_catalogo",
-        "description": "Ricerca un prodotto su un catalogo specifico (Elring, Corteco, Valeo, AutoDoc).",
+        "description": "Cerca un prodotto su un catalogo B2B specifico.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "catalogo": {
-                    "type": "string",
-                    "enum": ["Elring", "Corteco", "Valeo", "AutoDoc"],
-                    "description": "Catalogo dove cercare",
-                },
-                "query": {
-                    "type": "string",
-                    "description": "Nome prodotto, codice OE o descrizione",
-                },
+                "catalogo": {"type": "string", "enum": ["Elring", "Corteco", "Valeo", "AutoDoc"]},
+                "query": {"type": "string"},
             },
             "required": ["catalogo", "query"],
         },
     },
+    # --- Prezzi ---
     {
         "name": "calcola_prezzo_vendita",
-        "description": "Calcola prezzo di vendita da costo fornitore (applica margine + IVA automaticamente).",
+        "description": "Calcola prezzo di vendita da costo fornitore (margine + IVA).",
         "input_schema": {
             "type": "object",
             "properties": {
-                "costo": {
-                    "type": "number",
-                    "description": "Costo fornitore (es: 45.50)",
-                },
-                "margine": {
-                    "type": "number",
-                    "description": "Margine % (default 30%, opzionale)",
-                },
-                "iva": {
-                    "type": "number",
-                    "description": "IVA % (default 22%, opzionale)",
-                },
+                "costo": {"type": "number"},
+                "margine": {"type": "number", "description": "Margine % (default dal contesto o 30%)"},
+                "iva": {"type": "number", "description": "IVA % (default 22%)"},
             },
             "required": ["costo"],
         },
@@ -264,92 +267,89 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "prezzo_ivato": {
-                    "type": "number",
-                    "description": "Prezzo con IVA inclusa (es: 60.50)",
-                },
-                "iva": {
-                    "type": "number",
-                    "description": "IVA % (default 22%, opzionale)",
-                },
+                "prezzo_ivato": {"type": "number"},
+                "iva": {"type": "number", "description": "IVA % (default 22%)"},
             },
             "required": ["prezzo_ivato"],
         },
     },
+    # --- Export ---
     {
         "name": "esporta_csv",
-        "description": "Esporta risultati di ricerca in formato CSV scaricabile.",
+        "description": "Esporta lista prodotti in CSV scaricabile (separatore ; per Excel italiano).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "prodotti": {
                     "type": "array",
-                    "description": "Lista di prodotti (dict con titolo, prezzo, fornitore, ecc.)",
                     "items": {"type": "object"},
+                    "description": "Lista di prodotti/dati da esportare",
                 },
-                "nome_file": {
-                    "type": "string",
-                    "description": "Nome file CSV (opzionale, senza .csv extension)",
-                },
+                "nome_file": {"type": "string", "description": "Nome file CSV (senza estensione)"},
             },
             "required": ["prodotti"],
         },
     },
+    # --- Memoria e Contesto ---
     {
-        "name": "salva_ricerca",
-        "description": "Salva una ricerca in memoria storica. Utile per ricordare cosa hai cercato.",
+        "name": "aggiorna_contesto_sito",
+        "description": (
+            "Salva una decisione, preferenza o stato del sito in memoria permanente. "
+            "Persiste tra sessioni — usalo per ricordare decisioni importanti. "
+            "Es: margine_default, struttura_categorie, preferenze_utente, ultimo_import."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Query di ricerca",
-                },
-                "catalogo": {
-                    "type": "string",
-                    "description": "Catalogo cercato",
-                },
-                "risultati_trovati": {
-                    "type": "integer",
-                    "description": "Numero risultati trovati",
-                },
+                "chiave": {"type": "string", "description": "Nome della voce da salvare (es: 'margine_default')"},
+                "valore": {"type": "string", "description": "Valore da ricordare"},
+            },
+            "required": ["chiave", "valore"],
+        },
+    },
+    {
+        "name": "leggi_contesto_sito",
+        "description": "Legge il contesto permanente del sito (decisioni passate, preferenze, stato).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "chiave": {"type": "string", "description": "Chiave specifica da leggere (ometti per leggere tutto)"},
+            },
+        },
+    },
+    {
+        "name": "salva_ricerca",
+        "description": "Salva una ricerca nella memoria storica.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "catalogo": {"type": "string"},
+                "risultati_trovati": {"type": "integer"},
             },
             "required": ["query", "catalogo", "risultati_trovati"],
         },
     },
     {
         "name": "cerca_in_memoria",
-        "description": "Cerca ricerche passate o note in memoria. Evita ricerche duplicate.",
+        "description": "Cerca nelle ricerche, prodotti o note salvate. Evita di ripetere ricerche già fatte.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Cosa cercare in memoria",
-                },
-                "tipo": {
-                    "type": "string",
-                    "enum": ["ricerche", "prodotti", "note"],
-                    "description": "Tipo di memoria da cercare",
-                },
+                "query": {"type": "string"},
+                "tipo": {"type": "string", "enum": ["ricerche", "prodotti", "note"]},
             },
             "required": ["query"],
         },
     },
     {
         "name": "salva_nota",
-        "description": "Salva una nota personale per ricordarsi di qualcosa in futuro.",
+        "description": "Salva una nota per riferimento futuro.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "titolo": {
-                    "type": "string",
-                    "description": "Titolo breve della nota",
-                },
-                "contenuto": {
-                    "type": "string",
-                    "description": "Contenuto/dettagli della nota",
-                },
+                "titolo": {"type": "string"},
+                "contenuto": {"type": "string"},
             },
             "required": ["titolo", "contenuto"],
         },
@@ -362,48 +362,68 @@ TOOLS = [
 # ==========================================
 
 async def esegui_tool(name: str, input_dict: dict) -> dict:
-    """Esegue il tool e ritorna il risultato."""
+    """Esegue un tool con timeout di 60 secondi."""
     try:
-        if name == "crea_prodotto":
-            return await crea_prodotto(**input_dict)
-        elif name == "modifica_prodotto":
-            return await modifica_prodotto(**input_dict)
-        elif name == "crea_pagina_html":
-            return await crea_pagina_html(**input_dict)
-        elif name == "scrivi_pagina_html":
-            return await scrivi_pagina_html(**input_dict)
-        elif name == "leggi_pagina_html":
-            return await leggi_pagina_html(**input_dict)
-        elif name == "lista_prodotti":
-            return await lista_prodotti(**input_dict)
-        elif name == "ispeziona_pagina_elementor":
-            return await ispeziona_pagina_elementor(**input_dict)
-        elif name == "lista_pagine_elementor":
-            return await lista_pagine_elementor()
-        elif name == "cerca_tutti_cataloghi":
-            return await cerca_tutti_cataloghi(**input_dict)
-        elif name == "cerca_catalogo":
-            return await cerca_catalogo(**input_dict)
-        elif name == "calcola_prezzo_vendita":
-            return calcola_prezzo_vendita(**input_dict)
-        elif name == "scorporo_iva":
-            return scorporo_iva(**input_dict)
-        elif name == "esporta_csv":
-            return esporta_csv(**input_dict)
-        elif name == "salva_ricerca":
-            return salva_ricerca(**input_dict)
-        elif name == "cerca_in_memoria":
-            return cerca_in_memoria(**input_dict)
-        elif name == "salva_nota":
-            return salva_nota(**input_dict)
-        else:
-            return {"errore": f"Tool sconosciuto: {name}"}
+        coro = _dispatch_tool(name, input_dict)
+        return await asyncio.wait_for(coro, timeout=60)
+    except asyncio.TimeoutError:
+        return {"errore": f"Tool '{name}' ha superato il timeout di 60 secondi"}
     except Exception as e:
         return {"errore": f"Errore esecuzione {name}: {str(e)}"}
 
 
+async def _dispatch_tool(name: str, input_dict: dict) -> dict:
+    """Router tool → funzione."""
+    if name == "crea_prodotto":
+        return await crea_prodotto(**input_dict)
+    elif name == "modifica_prodotto":
+        return await modifica_prodotto(**input_dict)
+    elif name == "importa_prodotti_bulk":
+        return await importa_prodotti_bulk(**input_dict)
+    elif name == "crea_struttura_categorie":
+        return await crea_struttura_categorie(**input_dict)
+    elif name == "aggiungi_attributi_prodotto":
+        return await aggiungi_attributi_prodotto(**input_dict)
+    elif name == "crea_pagina_html":
+        return await crea_pagina_html(**input_dict)
+    elif name == "scrivi_pagina_html":
+        return await scrivi_pagina_html(**input_dict)
+    elif name == "leggi_pagina_html":
+        return await leggi_pagina_html(**input_dict)
+    elif name == "lista_prodotti":
+        return await lista_prodotti(**input_dict)
+    elif name == "ispeziona_pagina_elementor":
+        return await ispeziona_pagina_elementor(**input_dict)
+    elif name == "lista_pagine_elementor":
+        return await lista_pagine_elementor()
+    elif name == "naviga_web":
+        return await naviga_web(**input_dict)
+    elif name == "cerca_tutti_cataloghi":
+        return await cerca_tutti_cataloghi(**input_dict)
+    elif name == "cerca_catalogo":
+        return await cerca_catalogo(**input_dict)
+    elif name == "calcola_prezzo_vendita":
+        return calcola_prezzo_vendita(**input_dict)
+    elif name == "scorporo_iva":
+        return scorporo_iva(**input_dict)
+    elif name == "esporta_csv":
+        return esporta_csv(**input_dict)
+    elif name == "aggiorna_contesto_sito":
+        return aggiorna_contesto_sito(**input_dict)
+    elif name == "leggi_contesto_sito":
+        return leggi_contesto_sito(**input_dict)
+    elif name == "salva_ricerca":
+        return salva_ricerca(**input_dict)
+    elif name == "cerca_in_memoria":
+        return cerca_in_memoria(**input_dict)
+    elif name == "salva_nota":
+        return salva_nota(**input_dict)
+    else:
+        return {"errore": f"Tool sconosciuto: {name}"}
+
+
 # ==========================================
-# CICLO REACT PRINCIPALE
+# LOOP REACT PRINCIPALE
 # ==========================================
 
 async def chat(
@@ -412,96 +432,102 @@ async def chat(
     progress_callback=None,
 ) -> tuple[str, list]:
     """
-    Loop ReAct semplice:
-      1. Agente legge messaggio + cronologia
-      2. Decide action (tool_use) o fine (text)
-      3. Se tool_use: lo esegue e continua
-      4. Se text: return risposta finale
+    Loop ReAct autonomo con contesto persistente.
+
+    All'avvio carica il contesto del sito dalla memoria e lo inietta nel
+    system prompt — l'agente "ricorda" le sessioni precedenti.
+    Tool multipli nello stesso turno vengono eseguiti in parallelo.
     """
     if cronologia is None:
         cronologia = []
 
-    # Aggiungi messaggio utente
+    # Carica contesto persistente dalla memoria
+    contesto = carica_contesto_agente()
+
+    system_prompt = f"""Sei un assistente AI autonomo per la costruzione di enzovo.lt, \
+un e-commerce italiano di ricambi auto simile ad AutoDoc.
+
+=== CONTESTO DEL SITO (dalla memoria) ===
+{contesto}
+=========================================
+
+Hai accesso a tool per:
+- Navigare qualsiasi sito web (naviga_web)
+- Gestire prodotti e categorie WooCommerce (crea_prodotto, importa_prodotti_bulk, crea_struttura_categorie)
+- Cercare su cataloghi B2B (cerca_tutti_cataloghi, cerca_catalogo)
+- Calcolare prezzi con margine e IVA (calcola_prezzo_vendita)
+- Creare e modificare pagine HTML
+- Salvare e leggere contesto/memoria persistente
+
+Quando ricevi un task complesso, segui questo approccio:
+1. PIANIFICA: descrivi brevemente i passi che farai (numerati)
+2. ESEGUI: usa i tool necessari, eseguendo operazioni parallele dove possibile
+3. VERIFICA: controlla il risultato
+4. MEMORIZZA: salva in aggiorna_contesto_sito le decisioni importanti prese
+
+Per task semplici (domande, calcoli) rispondi direttamente senza pianificare.
+Ricorda le preferenze dell'utente e salva le decisioni per le sessioni future."""
+
     cronologia.append({"role": "user", "content": messaggio})
 
-    system_prompt = """Sei un assistente intelligente per ricambi auto.
-Puoi:
-- Creare nuovi prodotti nel catalogo
-- Modificare prodotti esistenti (prezzo, descrizione, stock)
-- Creare pagine HTML personalizzate sul sito
-- Cercare e leggere prodotti
-
-Esegui le richieste dell'utente usando i tool disponibili.
-Sii conciso e chiaro nelle risposte.
-Sempre conferma le azioni completate."""
-
-    max_iterations = 10
+    max_iterations = 30
     iteration = 0
 
     while iteration < max_iterations:
         iteration += 1
 
-        # Chiama Claude con i tool definiti
         response = await client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4000,
+            max_tokens=8000,
             system=system_prompt,
             tools=TOOLS,
             messages=cronologia,
         )
 
-        # Elabora risposta
         if response.stop_reason == "end_turn":
-            # Claude ha finito: estrai testo e ritorna
             risposta_finale = ""
             for block in response.content:
                 if hasattr(block, "text"):
                     risposta_finale = block.text
                     break
-
             cronologia.append({"role": "assistant", "content": risposta_finale})
             return risposta_finale, cronologia
 
         elif response.stop_reason == "tool_use":
-            # Claude vuole usare un tool
             tool_uses = [b for b in response.content if b.type == "tool_use"]
-
-            # Aggiungi assistant message con tutti i tool_use alla cronologia
             cronologia.append({"role": "assistant", "content": response.content})
 
-            # Esegui tutti i tool_use e raccogli risultati
-            tool_results = []
-            for tool_use in tool_uses:
+            # Esegui tool multipli IN PARALLELO
+            if progress_callback and len(tool_uses) > 1:
+                nomi = ", ".join(t.name for t in tool_uses)
+                await progress_callback(f"Esecuzione parallela: {nomi}")
+
+            async def run_tool(tool_use):
                 if progress_callback:
-                    await progress_callback(f"Esecuzione: {tool_use.name}({tool_use.input})")
-
+                    await progress_callback(f"▶ {tool_use.name}...")
                 result = await esegui_tool(tool_use.name, tool_use.input)
-
-                tool_results.append({
+                if progress_callback:
+                    stato = "✓" if not result.get("errore") else "✗"
+                    await progress_callback(f"{stato} {tool_use.name} completato")
+                return {
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,
-                    "content": json.dumps(result),
-                })
+                    "content": json.dumps(result, ensure_ascii=False),
+                }
 
-                if progress_callback:
-                    await progress_callback(f"{tool_use.name} completato")
-
-            # Aggiungi tool_result alla cronologia
-            cronologia.append({"role": "user", "content": tool_results})
+            tool_results = await asyncio.gather(*[run_tool(t) for t in tool_uses])
+            cronologia.append({"role": "user", "content": list(tool_results)})
 
         elif response.stop_reason == "max_tokens":
-            # Claude ha raggiunto il limite di token — continua il ciclo
             cronologia.append({"role": "assistant", "content": response.content})
             if progress_callback:
                 await progress_callback("Continuo l'elaborazione...")
 
         else:
-            # Stop reason sconosciuto
-            risposta_finale = f"Errore: stop_reason sconosciuto: {response.stop_reason}"
+            risposta_finale = f"Stop inatteso: {response.stop_reason}"
             cronologia.append({"role": "assistant", "content": risposta_finale})
             return risposta_finale, cronologia
 
-    # Max iterazioni raggiunto
-    risposta_finale = "Raggiunto limite iterazioni. Task non completato."
+    risposta_finale = "Limite iterazioni raggiunto (30). Task parzialmente completato."
     cronologia.append({"role": "assistant", "content": risposta_finale})
     return risposta_finale, cronologia

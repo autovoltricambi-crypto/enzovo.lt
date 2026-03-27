@@ -60,16 +60,47 @@
     .msg.progress {
       align-self: flex-start;
       background: #f8f9fa;
-      color: #666;
+      color: #555;
       font-size: 0.82rem;
-      padding: 6px 12px;
+      padding: 8px 14px;
       border-left: 3px solid #aaa;
+      max-width: 90%;
     }
+    .msg.progress .step-list {
+      margin-top: 6px;
+      padding-left: 4px;
+    }
+    .msg.progress .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 2px 0;
+    }
+    .msg.progress .step.done { color: #27ae60; }
+    .msg.progress .step.active { color: #e67e22; font-weight: 500; }
+    .msg.progress .step.pending { color: #aaa; }
     .msg.errore {
       align-self: flex-start;
       background: #fff0f0;
       color: #c0392b;
       border-left: 3px solid #e74c3c;
+    }
+    /* Piano agente */
+    .msg.piano {
+      align-self: flex-start;
+      background: #fffbea;
+      color: #333;
+      border-left: 3px solid #f39c12;
+      max-width: 85%;
+      font-size: 0.88rem;
+    }
+    .msg.piano .piano-header {
+      font-weight: 600;
+      color: #e67e22;
+      margin-bottom: 6px;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .csv-btn {
@@ -155,6 +186,7 @@
   const resetBtn = document.getElementById('reset-btn');
 
   const SESSION_ID = 'session_' + Math.random().toString(36).slice(2);
+  let progressSteps = [];
 
   function addMsg(text, tipo) {
     const div = document.createElement('div');
@@ -174,6 +206,35 @@
     return div;
   }
 
+  // Rileva se un testo è un messaggio di piano (contiene passi numerati)
+  function isPianoMsg(text) {
+    return /PIAN[OI]|^\d+\.\s/im.test(text) && text.includes('\n');
+  }
+
+  function renderProgress(testo) {
+    // Aggiungi step alla lista progressi
+    const stepMatch = testo.match(/^(▶|✓|✗)\s+(.+)$/);
+    if (stepMatch) {
+      progressSteps.push({ icon: stepMatch[1], testo: stepMatch[2] });
+    } else {
+      progressSteps.push({ icon: '⋯', testo });
+    }
+    return progressSteps;
+  }
+
+  function buildProgressHtml(steps) {
+    if (steps.length === 0) return '';
+    const items = steps.map(s => {
+      const cls = s.icon === '✓' ? 'done' : s.icon === '✗' ? 'pending' : 'active';
+      return `<div class="step ${cls}">${s.icon} ${escHtml(s.testo)}</div>`;
+    }).join('');
+    return `<div class="step-list">${items}</div>`;
+  }
+
+  function escHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   async function invia() {
     const testo = msgInput.value.trim();
     if (!testo) return;
@@ -182,6 +243,7 @@
     msgInput.value = '';
     msgInput.style.height = 'auto';
     sendBtn.disabled = true;
+    progressSteps = [];
 
     let progressDiv = null;
 
@@ -213,19 +275,34 @@
           try { evento = JSON.parse(raw); } catch { continue; }
 
           if (evento.tipo === 'progress') {
+            const steps = renderProgress(evento.testo);
             if (!progressDiv) {
-              progressDiv = addMsg(evento.testo, 'progress');
-            } else {
-              progressDiv.textContent = evento.testo;
-              chat.scrollTop = chat.scrollHeight;
+              progressDiv = document.createElement('div');
+              progressDiv.className = 'msg progress';
+              chat.appendChild(progressDiv);
             }
+            progressDiv.innerHTML = buildProgressHtml(steps);
+            chat.scrollTop = chat.scrollHeight;
+
           } else if (evento.tipo === 'risposta') {
             if (progressDiv) progressDiv.remove();
-            let html = evento.testo.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            if (evento.csv_disponibile) {
-              html += `\n\n<a class="csv-btn" href="/api/download/${evento.csv_disponibile}" download>Scarica CSV</a>`;
+
+            // Rileva messaggi di piano e mostrali con stile dedicato
+            const testo_r = evento.testo;
+            if (isPianoMsg(testo_r)) {
+              const pianoDiv = document.createElement('div');
+              pianoDiv.className = 'msg piano';
+              pianoDiv.innerHTML = `<div class="piano-header">Piano di esecuzione</div>${escHtml(testo_r).replace(/\n/g, '<br>')}`;
+              chat.appendChild(pianoDiv);
+            } else {
+              let html = escHtml(testo_r).replace(/\n/g, '<br>');
+              if (evento.csv_disponibile) {
+                html += `<br><br><a class="csv-btn" href="/api/download/${evento.csv_disponibile}" download>Scarica CSV</a>`;
+              }
+              addMsgHtml(html, 'agente');
             }
-            addMsgHtml(html.replace(/\n/g, '<br>'), 'agente');
+            chat.scrollTop = chat.scrollHeight;
+
           } else if (evento.tipo === 'errore') {
             if (progressDiv) progressDiv.remove();
             addMsg('Errore: ' + evento.testo, 'errore');

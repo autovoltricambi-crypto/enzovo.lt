@@ -1,4 +1,5 @@
 """Operazioni WordPress/WooCommerce via REST API."""
+import asyncio
 import json
 import httpx
 from tools.cataloghi import get_wp_client
@@ -257,3 +258,122 @@ async def lista_pagine_elementor() -> dict:
         "elementor": [p for p in pagine if p["tipo"] == "elementor"],
         "html": [p for p in pagine if p["tipo"] == "html"],
     }
+
+
+# ==========================================
+# OPERAZIONI BULK E ATTRIBUTI
+# ==========================================
+
+async def importa_prodotti_bulk(prodotti: list) -> dict:
+    """
+    Importa una lista di prodotti in WooCommerce in batch da 5 in parallelo.
+
+    Ogni elemento della lista deve avere: nome, prezzo, descrizione, sku.
+    Campi opzionali: stock, categoria, attributi (dict).
+
+    Ritorna un riepilogo con contatori e dettagli degli errori.
+    """
+    if not prodotti:
+        return {"errore": "Lista prodotti vuota"}
+
+    importati = []
+    falliti = []
+    batch_size = 5
+
+    for i in range(0, len(prodotti), batch_size):
+        batch = prodotti[i:i + batch_size]
+        tasks = []
+        for p in batch:
+            attributi = p.pop("attributi", None)
+            tasks.append(_crea_e_attributi(p, attributi))
+
+        risultati = await asyncio.gather(*tasks, return_exceptions=True)
+        for r in risultati:
+            if isinstance(r, Exception) or r.get("errore"):
+                falliti.append(r if not isinstance(r, Exception) else {"errore": str(r)})
+            else:
+                importati.append(r)
+
+    return {
+        "importati": len(importati),
+        "falliti": len(falliti),
+        "dettagli_importati": importati,
+        "dettagli_falliti": falliti,
+    }
+
+
+async def _crea_e_attributi(prodotto: dict, attributi: dict = None) -> dict:
+    """Helper: crea prodotto e aggiunge attributi se presenti."""
+    result = await crea_prodotto(**prodotto)
+    if result.get("errore") or not attributi:
+        return result
+    attr_result = await aggiungi_attributi_prodotto(result["id"], attributi)
+    result["attributi"] = attr_result
+    return result
+
+
+async def crea_struttura_categorie(categorie: list) -> dict:
+    """
+    Crea un albero di categorie WooCommerce in sequenza rispettando la gerarchia.
+
+    Input:
+      [
+        {"nome": "Filtri", "parent": null},
+        {"nome": "Filtri Olio", "parent": "Filtri"},
+        {"nome": "Filtri Aria", "parent": "Filtri"},
+      ]
+
+    Ritorna mappa nome → id per uso successivo.
+    """
+    client = get_wp_client()
+    mappa_id = {}  # nome → id
+
+    for cat in categorie:
+        nome = cat["nome"]
+        parent_nome = cat.get("parent")
+        parent_id = mappa_id.get(parent_nome, 0) if parent_nome else 0
+
+        # Controlla se esiste già
+        r = await client.get("/wp-json/wc/v3/products/categories", params={"search": nome})
+        if r.status_code == 200:
+            esistenti = [c for c in r.json() if c["name"].lower() == nome.lower()]
+            if esistenti:
+                mappa_id[nome] = esistenti[0]["id"]
+                continue
+
+        # Crea la categoria
+        payload = {"name": nome, "parent": parent_id}
+        r_create = await client.post("/wp-json/wc/v3/products/categories", json=payload)
+        if r_create.status_code in (200, 201):
+            mappa_id[nome] = r_create.json()["id"]
+        else:
+            mappa_id[nome] = None  # Fallita, continua
+
+    create = {k: v for k, v in mappa_id.items() if v}
+    fallite = [k for k, v in mappa_id.items() if not v]
+    return {"create": create, "fallite": fallite, "totale": len(create)}
+
+
+async def aggiungi_attributi_prodotto(product_id: int, attributi: dict) -> dict:
+    """
+    Aggiunge attributi a un prodotto WooCommerce esistente.
+
+    attributi: dict con chiavi libere, es:
+      {"marca_auto": "BMW", "modello": "Serie 3", "anno": "2005-2012", "codice_oe": "11427566327"}
+
+    Gli attributi vengono aggiunti come attributi visibili sulla pagina prodotto.
+    """
+    client = get_wp_client()
+
+    wc_attributes = [
+        {"name": k, "options": [str(v)], "visible": True}
+        for k, v in attributi.items()
+    ]
+
+    r = await client.put(
+        f"/wp-json/wc/v3/products/{product_id}",
+        json={"attributes": wc_attributes},
+    )
+    if r.status_code == 200:
+        return {"successo": True, "product_id": product_id, "attributi_aggiunti": list(attributi.keys())}
+    return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}

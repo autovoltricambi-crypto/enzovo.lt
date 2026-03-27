@@ -102,6 +102,35 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         }
 
 
+async def naviga_web(url: str, obiettivo: str) -> dict:
+    """
+    Naviga qualsiasi URL con browser-use ed esegue l'obiettivo specificato.
+    Uso generale: analizzare siti competitor, estrarre strutture, leggere pagine.
+
+    Esempi:
+      naviga_web("https://www.autodoc.it", "Elenca le categorie principali del sito")
+      naviga_web("https://www.elring.de/it", "Trova i prodotti per BMW N47 con prezzi")
+    """
+    from browser_use import Agent
+    from langchain_anthropic import ChatAnthropic
+
+    llm = ChatAnthropic(
+        model="claude-haiku-4-5-20251001",
+        api_key=Config.ANTHROPIC_API_KEY,
+    )
+
+    agent = Agent(
+        task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
+        llm=llm,
+    )
+
+    try:
+        history = await agent.run(max_steps=25)
+        return {"url": url, "risultato": history.final_result() or "Nessun risultato."}
+    except Exception as e:
+        return {"url": url, "errore": str(e)}
+
+
 async def cerca_tutti_cataloghi(query: str) -> dict:
     """
     Cerca su tutti i cataloghi in parallelo.
