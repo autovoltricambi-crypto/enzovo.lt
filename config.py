@@ -56,6 +56,7 @@ class Config:
     DATA_DIR = os.path.join(BASE_DIR, "data")
     EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
     MEMORIA_PATH = os.path.join(DATA_DIR, "memoria.json")
+    KNOW_DIR = os.path.join(BASE_DIR, "know")
 
     @classmethod
     def validate(cls):
@@ -66,4 +67,5 @@ class Config:
             )
         os.makedirs(cls.DATA_DIR, exist_ok=True)
         os.makedirs(cls.EXPORTS_DIR, exist_ok=True)
+        os.makedirs(cls.KNOW_DIR, exist_ok=True)  # cartella know/ alla radice
         return True

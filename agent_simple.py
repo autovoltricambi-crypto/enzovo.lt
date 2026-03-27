@@ -26,6 +26,8 @@ from tools.memoria import (
     aggiorna_contesto_sito,
     leggi_contesto_sito,
     carica_contesto_agente,
+    carica_conoscenze,
+    lista_knowledge,
 )
 
 Config.validate()
@@ -367,6 +369,24 @@ TOOLS = [
         },
     },
     {
+        "name": "leggi_knowledge",
+        "description": (
+            "Legge un file di knowledge base da data/know/. "
+            "Usa questo tool quando hai bisogno di expertise specifica su un argomento. "
+            "Prima chiama lista_knowledge per vedere i file disponibili, poi leggi quello che ti serve. "
+            "I file possono essere su qualsiasi argomento: ricambi, SEO, ads, codice, ecc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {
+                    "type": "string",
+                    "description": "Nome del file da leggere (es: 'ricambi.md', 'seo.md'). Ometti per vedere tutti i file disponibili.",
+                },
+            },
+        },
+    },
+    {
         "name": "salva_nota",
         "description": "Salva una nota per riferimento futuro.",
         "input_schema": {
@@ -434,6 +454,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return scorporo_iva(**input_dict)
     elif name == "esporta_csv":
         return esporta_csv(**input_dict)
+    elif name == "leggi_knowledge":
+        return leggi_knowledge(**input_dict)
     elif name == "aggiorna_contesto_sito":
         return aggiorna_contesto_sito(**input_dict)
     elif name == "leggi_contesto_sito":
@@ -470,29 +492,32 @@ async def chat(
     # Carica contesto persistente dalla memoria
     contesto = carica_contesto_agente()
 
-    system_prompt = f"""Sei un assistente AI autonomo per la costruzione di enzovo.lt, \
-un e-commerce italiano di ricambi auto simile ad AutoDoc.
+    system_prompt = f"""Sei un agente AI autonomo e generale. Puoi fare qualsiasi cosa \
+l'utente ti chiede: navigare il web, gestire siti, cercare informazioni, scrivere codice, \
+analizzare dati, creare contenuti, fare ricerche, e molto altro.
 
-=== CONTESTO DEL SITO (dalla memoria) ===
+Non sei limitato a un dominio specifico. Adatti le tue capacità al contesto del task.
+
+=== CONTESTO (memoria sessioni precedenti) ===
 {contesto}
-=========================================
+==============================================
 
 Hai accesso a tool per:
-- Navigare qualsiasi sito web (naviga_web)
-- Gestire prodotti e categorie WooCommerce (crea_prodotto, importa_prodotti_bulk, crea_struttura_categorie)
-- Cercare su cataloghi B2B (cerca_tutti_cataloghi, cerca_catalogo)
-- Calcolare prezzi con margine e IVA (calcola_prezzo_vendita)
-- Creare e modificare pagine HTML
-- Salvare e leggere contesto/memoria persistente
+- Navigare e interagire con qualsiasi sito web (naviga_web, accedi_portale_b2b)
+- Gestire un sito WordPress/WooCommerce (prodotti, categorie, pagine)
+- Cercare su cataloghi B2B e portali fornitore
+- Calcolare prezzi, esportare CSV
+- Leggere knowledge base di riferimento (leggi_knowledge)
+- Salvare memoria e contesto tra sessioni
 
-Quando ricevi un task complesso, segui questo approccio:
-1. PIANIFICA: descrivi brevemente i passi che farai (numerati)
-2. ESEGUI: usa i tool necessari, eseguendo operazioni parallele dove possibile
+Quando ricevi un task complesso:
+1. PIANIFICA: descrivi i passi che farai (numerati)
+2. ESEGUI: usa i tool, in parallelo dove possibile
 3. VERIFICA: controlla il risultato
-4. MEMORIZZA: salva in aggiorna_contesto_sito le decisioni importanti prese
+4. MEMORIZZA: salva decisioni importanti con aggiorna_contesto_sito
 
-Per task semplici (domande, calcoli) rispondi direttamente senza pianificare.
-Ricorda le preferenze dell'utente e salva le decisioni per le sessioni future."""
+Per task semplici rispondi direttamente.
+Ricorda le preferenze dell'utente e salvale in memoria."""
 
     cronologia.append({"role": "user", "content": messaggio})
 

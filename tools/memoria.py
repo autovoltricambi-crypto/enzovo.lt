@@ -142,6 +142,63 @@ def carica_contesto_agente() -> str:
     return "\n".join(righe)
 
 
+def lista_knowledge() -> dict:
+    """Ritorna la lista dei file di knowledge disponibili in data/know/."""
+    if not os.path.exists(Config.KNOW_DIR):
+        return {"files": [], "messaggio": "Nessun file di knowledge trovato"}
+    files = [f for f in sorted(os.listdir(Config.KNOW_DIR)) if f.endswith(".md")]
+    return {"files": files, "path": Config.KNOW_DIR}
+
+
+def leggi_knowledge(nome_file: str = None) -> dict:
+    """
+    Legge un file di knowledge da data/know/.
+    Se nome_file è None, ritorna la lista dei file disponibili.
+    """
+    if not nome_file:
+        return lista_knowledge()
+
+    # Sicurezza: impedisci path traversal
+    nome_file = os.path.basename(nome_file)
+    percorso = os.path.join(Config.KNOW_DIR, nome_file)
+
+    if not os.path.exists(percorso):
+        disponibili = lista_knowledge()["files"]
+        return {"errore": f"File '{nome_file}' non trovato. Disponibili: {disponibili}"}
+
+    try:
+        contenuto = open(percorso, encoding="utf-8").read()
+        return {"file": nome_file, "contenuto": contenuto}
+    except Exception as e:
+        return {"errore": str(e)}
+
+
+def carica_conoscenze() -> str:
+    """
+    Carica tutti i file .md da data/know/ e li concatena in una stringa
+    da iniettare nel system prompt dell'agente.
+
+    Puoi aggiungere, modificare o rimuovere file in data/know/ per
+    aggiornare l'expertise dell'agente senza toccare il codice.
+    """
+    if not os.path.exists(Config.KNOW_DIR):
+        return ""
+
+    sezioni = []
+    for nome_file in sorted(os.listdir(Config.KNOW_DIR)):
+        if not nome_file.endswith(".md"):
+            continue
+        percorso = os.path.join(Config.KNOW_DIR, nome_file)
+        try:
+            contenuto = open(percorso, encoding="utf-8").read().strip()
+            if contenuto:
+                sezioni.append(contenuto)
+        except Exception:
+            continue
+
+    return "\n\n---\n\n".join(sezioni)
+
+
 def statistiche_memoria() -> dict:
     """Ritorna statistiche sulla memoria."""
     memoria = _carica()
