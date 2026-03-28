@@ -48,24 +48,21 @@ La marca va nel titolo, non nello SKU.
 ## Formula Titolo
 
 ```
-[Marca] [Tipo Ricambio] [Auto/Motore principale]
+[Marca] [Tipo Ricambio] [SKU] [Auto/Motore principale]
 ```
 
-> ⚠️ Il **tipo ricambio** è obbligatorio nel titolo — deve essere sempre presente
-> e leggibile (es. "Filtro Olio", "Kit Distribuzione", "Pastiglie Freni").
-> Non scrivere mai solo marca + codice (es. "UFI 23.438.00" è sbagliato).
-
 **Esempi corretti:**
-- "Filtro Olio UFI BMW Serie 3 2.0d N47"
-- "Filtro Aria Mann BMW 320d E90 E91 E92"
-- "Kit Distribuzione Dayco Fiat Punto 1.3 Multijet"
-- "Filtro Carburante Japanparts Toyota Yaris 1.0 1.3"
+- "Filtro Olio UFI 23.438.00 BMW Serie 3 2.0d N47"
+- "Filtro Aria Mann C26110 Fiat Punto 1.4 Natural Power"
+- "Kit Distribuzione Dayco KTB459 Fiat 1.3 Multijet 16V"
+- "Filtro Carburante Japanparts FO101S Toyota Yaris 1.0 1.3"
 
 **Regole titolo:**
 - Sempre marca del ricambio (UFI, Mann, Mahle, Japanparts, ecc.)
-- Sempre tipo prodotto chiaro (Filtro Olio, Filtro Aria, Kit Distribuzione)
+- Sempre tipo prodotto leggibile (Filtro Olio, Filtro Aria, Kit Distribuzione)
+- Sempre SKU (codice fornitore)
 - Sempre auto + motorizzazione principale
-- No codici interni nel titolo (no "R304", no "OP400")
+- No codici interni (no "R304", no "OP400")
 - Max 70 caratteri
 
 ---
