@@ -117,6 +117,39 @@ Codice OE: 11427566327. Spedizione in 24h, garanzia 2 anni. Acquista online.
 - "codice OE [codice]" → "codice OE 11427566327"
 - "[SKU fornitore]" → "UFI 23.438.00", "Mann W712/83"
 
+### Strategia Coda Lunga per Piccole Attività (zero budget)
+
+Per una piccola attività senza budget pubblicitario, le keyword ad alto volume
+(es. "filtro olio BMW") sono dominate da marketplace grandi (Amazon, eBay, Autodoc).
+Competere su quelle è quasi impossibile senza investire in ads.
+
+**Le keyword a coda lunga sono la vera opportunità:**
+
+| Keyword | Volume | Concorrenza | Conversione |
+|---------|--------|-------------|-------------|
+| "filtro olio BMW" | Alto | Altissima | Media |
+| "filtro olio BMW 320d 2008 N47" | Basso | Bassa | Altissima |
+| "codice OE 11427566327" | Bassissimo | Quasi nulla | Massima |
+| "UFI 23.438.00 prezzo" | Bassissimo | Quasi nulla | Massima |
+
+**Perché funziona per le piccole attività:**
+- Chi cerca una keyword lunga e specifica è **pronto ad acquistare** — ha già deciso
+- I grandi marketplace non ottimizzano per migliaia di combinazioni specifiche
+- Un sito specializzato con schede prodotto dettagliate può posizionarsi in prima pagina
+  su coda lunga senza link building né ads
+- Il codice OE è la keyword più potente: chi cerca `11427566327` vuole esattamente
+  quel pezzo e compra al primo risultato affidabile
+
+**Tattica pratica:**
+1. Ogni scheda prodotto = una pagina ottimizzata per 3–5 keyword a coda lunga
+2. Inserire sempre il codice OE nel titolo, descrizione e meta description
+3. Creare varianti della scheda per ogni anno/modello compatibile (se la piattaforma lo permette)
+4. Rispondere alle domande informazionali con blog post brevi → cattura traffico a coda lunga informazionale
+
+> ⚠️ **Strategia da avviare**: mappare i prodotti più venduti e verificare
+> che ogni scheda abbia codice OE, anno veicolo e motorizzazione nel testo.
+> Questo da solo può generare traffico organico qualificato senza spendere nulla.
+
 ### Keyword Informazionali (blog/FAQ)
 - "quando cambiare filtro olio [auto]"
 - "quanto dura kit distribuzione [auto]"
