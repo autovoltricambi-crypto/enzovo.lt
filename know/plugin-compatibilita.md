@@ -23,22 +23,28 @@ marche diverse (cross-reference) e a collegarli al CSV di compatibilità veicoli
 
 ### Struttura dei Codici per Categoria
 
+I codici `related_sku_code` corrispondono ai **codici del catalogo Tecnocar**,
+uno dei brand disponibili su AZ Car B2B. Questi codici sono cercabili
+direttamente su AZ Car — non sono inventati da noi, ma presi dal catalogo Tecnocar.
+
 **Filtri Aria** → prefisso `A`
 ```
 A2181, A2183, A2190 ...
-(riferimento catalogo Tecnocar)
+(catalogo Tecnocar, cercabili su AZ Car)
 ```
 
 **Filtri Olio** → due serie:
 ```
 OP → filtri a bagno (cartuccia): OP400, OP246, OP312 ...
 R  → filtri a vite (spin-on):    R304, R100, R520 ...
+(catalogo Tecnocar, cercabili su AZ Car)
 ```
 
 **Filtri Carburante** → due serie:
 ```
 N  → a bagno:  N311, N290 ...
 RN → a vite:   RN260, RN180 ...
+(catalogo Tecnocar, cercabili su AZ Car)
 ```
 
 ---

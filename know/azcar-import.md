@@ -56,29 +56,37 @@ diventerà un prodotto separato su WooCommerce con lo stesso `related_sku_code`.
 
 ## Step 4 — Determinare il related_sku_code
 
-Basandoti sul tipo di prodotto, assegna il `related_sku_code` usando i prefissi interni:
+I codici `related_sku_code` sono i **codici del catalogo Tecnocar**, che è uno dei brand
+presenti su AZ Car. Questi codici esistono su AZ Car e sono cercabili direttamente.
+
+**I prefissi corrispondono al catalogo Tecnocar:**
 
 | Tipo prodotto | Prefisso | Esempi |
 |---------------|----------|--------|
-| Filtro Aria | `A` | A2181, A2183 (catalogo Tecnocar) |
+| Filtro Aria | `A` | A2181, A2183 |
 | Filtro Olio a bagno (cartuccia) | `OP` | OP400, OP246 |
 | Filtro Olio a vite (spin-on) | `R` | R304, R100 |
 | Filtro Carburante a bagno | `N` | N311, N290 |
 | Filtro Carburante a vite | `RN` | RN260, RN180 |
 
-**Come trovare il codice corretto:**
-- Guarda il codice AZ Car del prodotto
-- Cerca se esiste già un `related_sku_code` nel sistema per quel prodotto
-- Se non esiste, crea un nuovo codice con il prefisso corretto e il numero progressivo
+**Come trovare il related_sku_code:**
+
+**Metodo A — Ricerca diretta per codice Tecnocar (es. R304):**
+- Cerca "R304" su AZ Car → trova il prodotto Tecnocar
+- R304 diventa il `related_sku_code` per tutti i cross-reference di quel prodotto
+
+**Metodo B — Ricerca per veicolo o nome prodotto:**
+- Trova il prodotto (es. "filtro olio BMW N47")
+- Guarda se nella lista c'è la versione Tecnocar → usa quel codice come `related_sku_code`
+- Se non c'è Tecnocar nel cross, usa il prefisso giusto e crea un nuovo numero progressivo
 
 **Esempio:**
 ```
-Prodotto AZ Car: Filtro olio a vite per BMW N47
-Codice AZ Car: UFI-23.438.00
-Cross: MANN W712/83, MAHLE OC1044
+Ricerca: "R304" su AZ Car
+→ Trovato: Tecnocar R304 (filtro olio a vite)
+→ Cross: UFI 23.438.00, MANN W712/83, MAHLE OC1044
 
-→ related_sku_code: R304 (se già censito) oppure nuovo R-xxx
-→ Tutti i prodotti in cross condividono lo stesso related_sku_code
+related_sku_code per tutti: R304
 ```
 
 ---
