@@ -11,6 +11,7 @@ from tools.obiettivi import (
     completa_obiettivo,
     lista_obiettivi,
     priorita_oggi,
+    priorita_periodo,
     statistiche_obiettivi,
 )
 from tools.wordpress_write import (
@@ -551,12 +552,23 @@ TOOLS = [
     },
     {
         "name": "priorita_oggi",
-        "description": (
-            "Analizza tutti gli obiettivi e task e suggerisce i 3 task più urgenti da fare oggi. "
-            "Usalo quando l'utente chiede 'cosa faccio oggi?' o 'da dove parto?'. "
-            "Tiene conto di scadenze, priorità e task già in corso."
-        ),
+        "description": "Suggerisce i 3 task più urgenti da fare oggi.",
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "priorita_periodo",
+        "description": (
+            "Analizza obiettivi e task e suggerisce le 3 priorità del periodo scelto. "
+            "Usalo per pianificare la settimana o il mese. "
+            "Tutto il lavoro deve ruotare attorno agli obiettivi principali del periodo. "
+            "Usalo quando l'utente chiede 'cosa devo fare questa settimana?' o 'su cosa mi concentro questo mese?'"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "periodo": {"type": "string", "enum": ["oggi", "settimana", "mese"], "description": "Periodo di pianificazione"},
+            },
+        },
     },
     {
         "name": "statistiche_obiettivi",
@@ -651,6 +663,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return lista_obiettivi(**input_dict)
     elif name == "priorita_oggi":
         return priorita_oggi()
+    elif name == "priorita_periodo":
+        return priorita_periodo(**input_dict)
     elif name == "statistiche_obiettivi":
         return statistiche_obiettivi()
     else:
@@ -678,6 +692,24 @@ async def chat(
 
     # Carica contesto persistente dalla memoria
     contesto = carica_contesto_agente()
+
+    # Carica obiettivi attivi per iniettarli nel system prompt
+    from tools.obiettivi import lista_obiettivi, priorita_oggi
+    _ob = lista_obiettivi(solo_attivi=True)
+    _ob_list = _ob.get("obiettivi", [])
+    _ob_str = ""
+    if _ob_list:
+        righe = []
+        for ob in _ob_list:
+            giorni = ob.get("giorni_rimanenti")
+            scad = f" — {giorni}g alla scadenza" if giorni is not None else ""
+            righe.append(f"• [{ob['priorita'].upper()}] {ob['titolo']}{scad}")
+            task_aperti = [t for t in ob.get("task", []) if t["stato"] != "completato"]
+            for t in task_aperti[:3]:
+                righe.append(f"  → {t['titolo']} [{t['stato']}]")
+        _ob_str = "\n".join(righe)
+    else:
+        _ob_str = "Nessun obiettivo salvato — chiedi all'utente a cosa sta puntando."
 
     # Carica knowledge files critici automaticamente
     _know_critico = ""
@@ -733,6 +765,13 @@ Usa leggi_knowledge(nome_file) per leggere questi file prima di agire su argomen
 {_know_files}
 ====================================
 
+=== OBIETTIVI ATTIVI (priorità settimana/mese) ===
+{_ob_str}
+Tutto il tuo lavoro deve ruotare attorno a questi obiettivi.
+Ogni azione che esegui deve avvicinarci a uno di essi.
+Se l'utente chiede qualcosa di non collegato, fallo ma ricordagli il focus principale.
+==================================================
+
 === CONTESTO (memoria sessioni precedenti) ===
 {contesto}
 ==============================================
@@ -756,14 +795,36 @@ Per task semplici rispondi direttamente senza pianificazione.
 Se qualcosa non funziona, diagnostica prima di cambiare approccio.
 
 === OBIETTIVI & TASK MANAGER (supporto ADHD) ===
-Hai accesso a un sistema di obiettivi e task. Usalo attivamente:
-- Quando l'utente menziona qualcosa da fare → crea subito un task con aggiungi_task
-- Quando l'utente chiede "cosa faccio?" o "da dove parto?" → chiama priorita_oggi()
-- Quando completi qualcosa insieme all'utente → segna il task come completato con completa_task
-- Quando crei un obiettivo nuovo → scomponilo subito in 3-5 task concreti e azionabili
-- Suggerisci proattivamente le priorità del giorno all'inizio della sessione
-- I task devono essere specifici e realizzabili in una sessione (es. "Testare browser-use", non "Lavorare sul sito")
-- Ricorda che l'utente ha ADHD: dai un focus chiaro, massimo 3 cose alla volta, celebra i completamenti
+
+L'utente ha ADHD. Il tuo ruolo non è solo eseguire task tecnici — è anche aiutarlo
+a mantenere il focus, ricordargli gli obiettivi e guidarlo passo per passo.
+
+COMPORTAMENTO PROATTIVO:
+- **Inizio sessione**: chiama lista_obiettivi() e priorita_periodo("settimana") per capire
+  dove siamo. Saluta e ricorda subito l'obiettivo principale della settimana/mese e i task aperti.
+  Non chiedere "cosa vuoi fare?" — dì tu cosa c'è da fare in base agli obiettivi.
+- **Obiettivo nuovo**: quando l'utente dichiara un obiettivo (es. "voglio aumentare
+  le entrate nel negozio"), NON limitarti a salvarlo — ragiona su di esso:
+  * Cosa implica concretamente? (es. "negozio locale" → SEO locale, Google My Business,
+    più prodotti per coprire più ricerche locali)
+  * Scomponilo in 3-5 task specifici e azionabili con scadenze realistiche
+  * Chiedi all'utente se manca qualcosa prima di procedere
+- **Durante il lavoro**: ricorda all'utente il collegamento tra quello che stai
+  facendo e l'obiettivo principale (es. "Sto aggiungendo questi prodotti perché
+  coprono ricerche locali per BMW — questo ci avvicina all'obiettivo entrate")
+- **Fine sessione o task completato**: celebra il completamento, fai un recap
+  breve di cosa è stato fatto e cosa rimane, suggerisci il prossimo passo
+- **Se l'utente si perde o cambia argomento**: riportalo gentilmente al focus
+  (es. "Possiamo farlo, ma ricorda che l'obiettivo principale oggi è X — vuoi
+  finirlo prima?")
+
+REGOLE ADHD:
+- Max 3 cose alla volta — mai sovraccaricare
+- Task specifici e piccoli (realizzabili in una sessione)
+- Celebra ogni completamento, anche piccolo
+- Dai sempre un "prossimo passo" chiaro alla fine di ogni risposta
+- Se non c'è nessun obiettivo salvato, chiedi all'utente: "A cosa stiamo puntando?
+  Dimmi il tuo obiettivo principale così posso aiutarti a organizzarti."
 ================================================"""
 
     cronologia.append({"role": "user", "content": messaggio})

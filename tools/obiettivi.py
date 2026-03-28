@@ -164,37 +164,48 @@ def lista_obiettivi(solo_attivi: bool = True) -> dict:
     return {"obiettivi": obiettivi, "totale": len(obiettivi)}
 
 
-def priorita_oggi() -> dict:
+def priorita_periodo(periodo: str = "settimana") -> dict:
     """
-    Analizza obiettivi e task e suggerisce cosa fare oggi.
-    Logica ADHD-friendly: max 3 task, ordinati per urgenza e priorità.
+    Analizza obiettivi e task e suggerisce le priorità del periodo.
+    periodo: 'oggi' | 'settimana' | 'mese'
+    Logica ADHD-friendly: max 3 task, tutto ruota attorno agli obiettivi principali.
     """
     data = _carica()
     candidati = []
+
+    giorni_periodo = {"oggi": 1, "settimana": 7, "mese": 30}.get(periodo, 7)
 
     for ob in data["obiettivi"]:
         if ob["stato"] == "completato":
             continue
         for task in ob["task"]:
             if task["stato"] in ("da_fare", "in_corso", "bloccato"):
-                giorni = _giorni_rimanenti(task.get("scadenza")) or _giorni_rimanenti(ob.get("scadenza"))
+                giorni_task = _giorni_rimanenti(task.get("scadenza"))
+                giorni_ob = _giorni_rimanenti(ob.get("scadenza"))
+                giorni = giorni_task if giorni_task is not None else giorni_ob
+
                 punteggio = 0
-                # Urgenza scadenza
+                # Urgenza scadenza rispetto al periodo
                 if giorni is not None:
                     if giorni <= 1:
                         punteggio += 100
-                    elif giorni <= 3:
-                        punteggio += 50
-                    elif giorni <= 7:
-                        punteggio += 20
-                # Priorità
+                    elif giorni <= giorni_periodo:
+                        punteggio += 70
+                    elif giorni <= giorni_periodo * 2:
+                        punteggio += 30
+                # Priorità obiettivo padre
+                if ob["priorita"] == "alta":
+                    punteggio += 40
+                elif ob["priorita"] == "media":
+                    punteggio += 20
+                # Priorità task
                 if task["priorita"] == "alta":
                     punteggio += 30
                 elif task["priorita"] == "media":
                     punteggio += 10
                 # In corso ha precedenza
                 if task["stato"] == "in_corso":
-                    punteggio += 40
+                    punteggio += 50
 
                 candidati.append({
                     "task_id": task["id"],
@@ -212,12 +223,22 @@ def priorita_oggi() -> dict:
     top3 = candidati[:3]
 
     if not top3:
-        return {"messaggio": "Nessun task in sospeso. Tutti gli obiettivi sono completati!", "task_oggi": []}
+        return {"messaggio": "Nessun task in sospeso. Tutti gli obiettivi sono completati!", "task_periodo": []}
 
+    label = {"oggi": "oggi", "settimana": "questa settimana", "mese": "questo mese"}.get(periodo, "questo periodo")
     return {
-        "task_oggi": top3,
-        "messaggio": f"Hai {len(candidati)} task in sospeso. Ecco i 3 più urgenti per oggi:",
+        "task_periodo": top3,
+        "periodo": periodo,
+        "messaggio": f"Hai {len(candidati)} task in sospeso. Ecco i 3 più importanti per {label}:",
     }
+
+
+def priorita_oggi() -> dict:
+    """Alias per compatibilità — chiama priorita_periodo('oggi')."""
+    r = priorita_periodo("oggi")
+    # Rinomina task_periodo in task_oggi per compatibilità
+    r["task_oggi"] = r.pop("task_periodo", [])
+    return r
 
 
 def statistiche_obiettivi() -> dict:
