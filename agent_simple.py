@@ -528,7 +528,7 @@ Ricorda le preferenze dell'utente e salvale in memoria."""
         iteration += 1
 
         response = await client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=8000,
             system=system_prompt,
             tools=TOOLS,
