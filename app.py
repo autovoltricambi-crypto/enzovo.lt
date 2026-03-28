@@ -132,6 +132,13 @@ async def api_reset(request: Request):
     return JSONResponse({"successo": True})
 
 
+@app.get("/api/csv-index")
+async def api_csv_index():
+    """Ritorna l'indice dei CSV salvati con descrizione."""
+    from tools.csv_export import lista_csv_salvati
+    return JSONResponse(lista_csv_salvati())
+
+
 @app.get("/api/downloads")
 async def api_downloads():
     if not os.path.exists(Config.EXPORTS_DIR):
@@ -197,12 +204,12 @@ async def debug_browser():
             risultato["versioni"][pkg] = f"NON TROVATO: {e}"
 
     try:
-        from browser_use import Agent, Browser, ChatAnthropic
+        from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
         llm = ChatAnthropic(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             api_key=Config.ANTHROPIC_API_KEY,
         )
-        browser = Browser(headless=False)
+        browser = Browser(browser_profile=BrowserProfile(headless=False))
         agent = Agent(
             task="Vai su https://example.com e dimmi il titolo della pagina.",
             llm=llm,
@@ -214,6 +221,27 @@ async def debug_browser():
         risultato["errore"] = traceback.format_exc()
 
     return JSONResponse(risultato)
+
+
+@app.get("/api/obiettivi")
+async def api_obiettivi():
+    """Ritorna tutti gli obiettivi attivi con i loro task."""
+    from tools.obiettivi import lista_obiettivi
+    return JSONResponse(lista_obiettivi(solo_attivi=True))
+
+
+@app.get("/api/obiettivi/oggi")
+async def api_priorita_oggi():
+    """Ritorna i 3 task più urgenti da fare oggi."""
+    from tools.obiettivi import priorita_oggi
+    return JSONResponse(priorita_oggi())
+
+
+@app.get("/api/obiettivi/statistiche")
+async def api_statistiche_obiettivi():
+    """Ritorna statistiche generali sugli obiettivi."""
+    from tools.obiettivi import statistiche_obiettivi
+    return JSONResponse(statistiche_obiettivi())
 
 
 if __name__ == "__main__":

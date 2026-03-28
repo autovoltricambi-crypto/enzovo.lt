@@ -3,6 +3,16 @@ import asyncio
 from anthropic import AsyncAnthropic
 
 from config import Config
+from tools.obiettivi import (
+    crea_obiettivo,
+    aggiungi_task,
+    completa_task,
+    aggiorna_task,
+    completa_obiettivo,
+    lista_obiettivi,
+    priorita_oggi,
+    statistiche_obiettivi,
+)
 from tools.wordpress_write import (
     crea_prodotto,
     modifica_prodotto,
@@ -18,7 +28,7 @@ from tools.wordpress_write import (
 )
 from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web, accedi_portale_b2b
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
-from tools.csv_export import esporta_csv
+from tools.csv_export import esporta_csv, lista_csv_salvati
 from tools.memoria import (
     salva_ricerca,
     cerca_in_memoria,
@@ -307,7 +317,11 @@ TOOLS = [
     # --- Export ---
     {
         "name": "esporta_csv",
-        "description": "Esporta lista prodotti in CSV scaricabile (separatore ; per Excel italiano).",
+        "description": (
+            "Esporta lista prodotti/dati in CSV scaricabile (separatore ; per Excel italiano). "
+            "Aggiungi sempre una descrizione chiara (es. 'Compatibilità veicoli R304 - BMW N47') "
+            "così il file è ritrovabile in seguito."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -317,9 +331,19 @@ TOOLS = [
                     "description": "Lista di prodotti/dati da esportare",
                 },
                 "nome_file": {"type": "string", "description": "Nome file CSV (senza estensione)"},
+                "descrizione": {"type": "string", "description": "Descrizione del contenuto (es. 'Compatibilità veicoli R304')"},
             },
             "required": ["prodotti"],
         },
+    },
+    {
+        "name": "lista_csv_salvati",
+        "description": (
+            "Ritorna l'elenco di tutti i CSV salvati con nome, descrizione e data. "
+            "Usalo quando l'utente vuole trovare un CSV precedentemente esportato, "
+            "ad esempio un file compatibilità veicoli."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     # --- Memoria e Contesto ---
     {
@@ -435,6 +459,110 @@ TOOLS = [
             "required": ["titolo", "contenuto"],
         },
     },
+    # ==========================================
+    # OBIETTIVI & TASK MANAGER
+    # ==========================================
+    {
+        "name": "crea_obiettivo",
+        "description": (
+            "Crea un nuovo obiettivo principale con scadenza e priorità. "
+            "Usalo quando l'utente vuole raggiungere qualcosa di specifico entro una data. "
+            "Dopo aver creato l'obiettivo, scomponilo subito in task concreti con aggiungi_task."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string", "description": "Titolo breve dell'obiettivo"},
+                "descrizione": {"type": "string", "description": "Descrizione dettagliata di cosa si vuole ottenere"},
+                "scadenza": {"type": "string", "description": "Data scadenza formato YYYY-MM-DD (es. 2026-04-30)"},
+                "priorita": {"type": "string", "enum": ["alta", "media", "bassa"], "description": "Priorità dell'obiettivo"},
+            },
+            "required": ["titolo", "descrizione"],
+        },
+    },
+    {
+        "name": "aggiungi_task",
+        "description": (
+            "Aggiunge un task concreto e azionabile a un obiettivo. "
+            "I task devono essere specifici e realizzabili (es. 'Testare browser-use su Mac', non 'Lavorare sul sito'). "
+            "Assegna sempre una priorità e una scadenza realistica."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "obiettivo_id": {"type": "string", "description": "ID dell'obiettivo (8 caratteri)"},
+                "titolo": {"type": "string", "description": "Descrizione chiara e azionabile del task"},
+                "scadenza": {"type": "string", "description": "Data scadenza YYYY-MM-DD"},
+                "priorita": {"type": "string", "enum": ["alta", "media", "bassa"]},
+                "note": {"type": "string", "description": "Note aggiuntive o contesto"},
+            },
+            "required": ["obiettivo_id", "titolo"],
+        },
+    },
+    {
+        "name": "completa_task",
+        "description": "Segna un task come completato. Usalo appena l'utente o l'agente porta a termine un task.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "ID del task (8 caratteri)"},
+            },
+            "required": ["task_id"],
+        },
+    },
+    {
+        "name": "aggiorna_task",
+        "description": "Aggiorna stato, note, priorità o scadenza di un task esistente.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "ID del task"},
+                "stato": {"type": "string", "enum": ["da_fare", "in_corso", "completato", "bloccato"]},
+                "note": {"type": "string"},
+                "priorita": {"type": "string", "enum": ["alta", "media", "bassa"]},
+                "scadenza": {"type": "string", "description": "YYYY-MM-DD"},
+            },
+            "required": ["task_id"],
+        },
+    },
+    {
+        "name": "completa_obiettivo",
+        "description": "Segna un obiettivo intero come completato.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "obiettivo_id": {"type": "string"},
+            },
+            "required": ["obiettivo_id"],
+        },
+    },
+    {
+        "name": "lista_obiettivi",
+        "description": (
+            "Ritorna tutti gli obiettivi con i loro task, stato e giorni rimanenti. "
+            "Usalo per avere una visione completa di cosa c'è da fare."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "solo_attivi": {"type": "boolean", "description": "Se true (default), esclude gli obiettivi completati"},
+            },
+        },
+    },
+    {
+        "name": "priorita_oggi",
+        "description": (
+            "Analizza tutti gli obiettivi e task e suggerisce i 3 task più urgenti da fare oggi. "
+            "Usalo quando l'utente chiede 'cosa faccio oggi?' o 'da dove parto?'. "
+            "Tiene conto di scadenze, priorità e task già in corso."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "statistiche_obiettivi",
+        "description": "Ritorna un riepilogo del progresso: quanti obiettivi e task completati vs in sospeso.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -491,6 +619,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return scorporo_iva(**input_dict)
     elif name == "esporta_csv":
         return esporta_csv(**input_dict)
+    elif name == "lista_csv_salvati":
+        return lista_csv_salvati()
     elif name == "leggi_knowledge":
         return leggi_knowledge(**input_dict)
     elif name == "aggiorna_knowledge":
@@ -507,6 +637,22 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return cerca_in_memoria(**input_dict)
     elif name == "salva_nota":
         return salva_nota(**input_dict)
+    elif name == "crea_obiettivo":
+        return crea_obiettivo(**input_dict)
+    elif name == "aggiungi_task":
+        return aggiungi_task(**input_dict)
+    elif name == "completa_task":
+        return completa_task(**input_dict)
+    elif name == "aggiorna_task":
+        return aggiorna_task(**input_dict)
+    elif name == "completa_obiettivo":
+        return completa_obiettivo(**input_dict)
+    elif name == "lista_obiettivi":
+        return lista_obiettivi(**input_dict)
+    elif name == "priorita_oggi":
+        return priorita_oggi()
+    elif name == "statistiche_obiettivi":
+        return statistiche_obiettivi()
     else:
         return {"errore": f"Tool sconosciuto: {name}"}
 
@@ -607,7 +753,18 @@ Quando ricevi un task complesso:
 5. MEMORIZZA: salva decisioni importanti con aggiorna_contesto_sito
 
 Per task semplici rispondi direttamente senza pianificazione.
-Se qualcosa non funziona, diagnostica prima di cambiare approccio."""
+Se qualcosa non funziona, diagnostica prima di cambiare approccio.
+
+=== OBIETTIVI & TASK MANAGER (supporto ADHD) ===
+Hai accesso a un sistema di obiettivi e task. Usalo attivamente:
+- Quando l'utente menziona qualcosa da fare → crea subito un task con aggiungi_task
+- Quando l'utente chiede "cosa faccio?" o "da dove parto?" → chiama priorita_oggi()
+- Quando completi qualcosa insieme all'utente → segna il task come completato con completa_task
+- Quando crei un obiettivo nuovo → scomponilo subito in 3-5 task concreti e azionabili
+- Suggerisci proattivamente le priorità del giorno all'inizio della sessione
+- I task devono essere specifici e realizzabili in una sessione (es. "Testare browser-use", non "Lavorare sul sito")
+- Ricorda che l'utente ha ADHD: dai un focus chiaro, massimo 3 cose alla volta, celebra i completamenti
+================================================"""
 
     cronologia.append({"role": "user", "content": messaggio})
 

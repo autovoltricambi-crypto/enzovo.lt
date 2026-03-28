@@ -13,34 +13,75 @@
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     header {
       background: #1a1a2e;
       color: #fff;
-      padding: 14px 20px;
+      padding: 12px 20px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: space-between;
+      flex-shrink: 0;
     }
-    header h1 { font-size: 1.1rem; font-weight: 600; }
-    header span { font-size: 0.8rem; opacity: 0.6; }
+    header h1 { font-size: 1rem; font-weight: 600; }
+    header span { font-size: 0.75rem; opacity: 0.6; }
+
+    /* Tabs */
+    #tabs {
+      display: flex;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      font-size: 0.88rem;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-family: inherit;
+    }
+    .tab-btn.active {
+      color: #1a1a2e;
+      border-bottom-color: #1a1a2e;
+      font-weight: 600;
+    }
+    .tab-btn:hover:not(.active) { background: #f5f5f5; }
+
+    /* Layout principale */
+    #main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* PANNELLO CHAT */
+    #panel-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
     #chat {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
 
     .msg {
-      max-width: 75%;
-      padding: 12px 16px;
+      max-width: 78%;
+      padding: 10px 14px;
       border-radius: 12px;
-      line-height: 1.5;
-      font-size: 0.92rem;
+      line-height: 1.55;
+      font-size: 0.9rem;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -61,23 +102,14 @@
       align-self: flex-start;
       background: #f8f9fa;
       color: #555;
-      font-size: 0.82rem;
-      padding: 8px 14px;
+      font-size: 0.8rem;
+      padding: 8px 12px;
       border-left: 3px solid #aaa;
       max-width: 90%;
     }
-    .msg.progress .step-list {
-      margin-top: 6px;
-      padding-left: 4px;
-    }
-    .msg.progress .step {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 2px 0;
-    }
+    .msg.progress .step { display:flex; align-items:center; gap:8px; padding:2px 0; }
     .msg.progress .step.done { color: #27ae60; }
-    .msg.progress .step.active { color: #e67e22; font-weight: 500; }
+    .msg.progress .step.active { color: #e67e22; font-weight:500; }
     .msg.progress .step.pending { color: #aaa; }
     .msg.errore {
       align-self: flex-start;
@@ -85,81 +117,186 @@
       color: #c0392b;
       border-left: 3px solid #e74c3c;
     }
-    /* Piano agente */
     .msg.piano {
       align-self: flex-start;
       background: #fffbea;
       color: #333;
       border-left: 3px solid #f39c12;
       max-width: 85%;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
     }
     .msg.piano .piano-header {
-      font-weight: 600;
-      color: #e67e22;
-      margin-bottom: 6px;
-      font-size: 0.82rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      font-weight:600; color:#e67e22; margin-bottom:5px;
+      font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em;
     }
 
     .csv-btn {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 6px 14px;
-      background: #27ae60;
-      color: #fff;
-      border-radius: 6px;
-      text-decoration: none;
-      font-size: 0.82rem;
+      display:inline-block; margin-top:8px; padding:5px 12px;
+      background:#27ae60; color:#fff; border-radius:6px;
+      text-decoration:none; font-size:0.8rem;
     }
-    .csv-btn:hover { background: #219a52; }
+    .csv-btn:hover { background:#219a52; }
 
     #input-area {
-      padding: 14px 20px;
+      padding: 12px 16px;
       background: #fff;
       border-top: 1px solid #e0e0e0;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: flex-end;
+      flex-shrink: 0;
     }
-
     #input-area textarea {
-      flex: 1;
-      padding: 10px 14px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      resize: none;
-      font-size: 0.92rem;
-      font-family: inherit;
-      max-height: 120px;
-      outline: none;
+      flex:1; padding:9px 13px; border:1px solid #ccc;
+      border-radius:10px; resize:none; font-size:0.9rem;
+      font-family:inherit; max-height:120px; outline:none;
     }
-    #input-area textarea:focus { border-color: #1a1a2e; }
-
+    #input-area textarea:focus { border-color:#1a1a2e; }
     #send-btn {
-      padding: 10px 20px;
+      padding:9px 18px; background:#1a1a2e; color:#fff;
+      border:none; border-radius:10px; cursor:pointer; font-size:0.9rem; white-space:nowrap;
+    }
+    #send-btn:disabled { background:#aaa; cursor:not-allowed; }
+    #send-btn:hover:not(:disabled) { background:#16213e; }
+    #reset-btn {
+      padding:9px 12px; background:transparent; color:#999;
+      border:1px solid #ddd; border-radius:10px; cursor:pointer; font-size:0.8rem;
+    }
+    #reset-btn:hover { color:#e74c3c; border-color:#e74c3c; }
+
+    /* PANNELLO OBIETTIVI */
+    #panel-obiettivi {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #panel-obiettivi.visible { display: flex; }
+
+    .ob-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .ob-header h2 { font-size: 1rem; color: #1a1a2e; }
+
+    /* Oggi card */
+    .oggi-card {
       background: #1a1a2e;
       color: #fff;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 0.92rem;
-      white-space: nowrap;
+      border-radius: 12px;
+      padding: 14px 16px;
     }
-    #send-btn:disabled { background: #aaa; cursor: not-allowed; }
-    #send-btn:hover:not(:disabled) { background: #16213e; }
+    .oggi-card h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 10px; }
+    .oggi-task {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .oggi-task-item {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .oggi-task-item .task-num {
+      width: 22px; height: 22px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+    }
+    .oggi-task-item .task-info { flex: 1; min-width: 0; }
+    .oggi-task-item .task-titolo { font-size: 0.88rem; font-weight: 500; }
+    .oggi-task-item .task-ob { font-size: 0.75rem; opacity: 0.65; margin-top: 2px; }
+    .oggi-task-item .task-badge {
+      font-size: 0.7rem; padding: 2px 7px;
+      border-radius: 10px; background: rgba(255,255,255,0.15); white-space: nowrap;
+    }
+    .oggi-vuoto { text-align: center; opacity: 0.7; font-size: 0.88rem; padding: 10px 0; }
 
-    #reset-btn {
-      padding: 10px 14px;
-      background: transparent;
-      color: #999;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 0.82rem;
+    /* Statistiche */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
     }
-    #reset-btn:hover { color: #e74c3c; border-color: #e74c3c; }
+    .stat-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .stat-card .num { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; }
+    .stat-card .lbl { font-size: 0.72rem; color: #888; margin-top: 2px; }
+
+    /* Obiettivi lista */
+    .ob-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .ob-title-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .ob-title { font-size: 0.95rem; font-weight: 600; color: #1a1a2e; flex: 1; }
+    .ob-meta { font-size: 0.75rem; color: #888; margin-bottom: 10px; }
+    .ob-badge {
+      font-size: 0.7rem; padding: 2px 8px;
+      border-radius: 10px; white-space: nowrap; font-weight: 500;
+    }
+    .ob-badge.alta { background: #ffe0e0; color: #c0392b; }
+    .ob-badge.media { background: #fff3cd; color: #856404; }
+    .ob-badge.bassa { background: #d4edda; color: #155724; }
+    .ob-scadenza { font-size: 0.72rem; margin-top: 2px; }
+    .ob-scadenza.urgente { color: #e74c3c; font-weight: 600; }
+    .ob-scadenza.ok { color: #888; }
+
+    /* Task list */
+    .task-list { display: flex; flex-direction: column; gap: 6px; }
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 0.85rem;
+    }
+    .task-item .task-check {
+      width: 18px; height: 18px;
+      border: 2px solid #ccc;
+      border-radius: 4px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .task-item.completato .task-check { background: #27ae60; border-color: #27ae60; color: #fff; }
+    .task-item.completato .task-testo { text-decoration: line-through; color: #aaa; }
+    .task-item.in_corso { border-left: 3px solid #f39c12; }
+    .task-item.bloccato { border-left: 3px solid #e74c3c; }
+    .task-item.da_fare { border-left: 3px solid #ddd; }
+    .task-testo { flex: 1; }
+    .task-note { font-size: 0.72rem; color: #888; margin-top: 2px; }
+    .task-days { font-size: 0.7rem; color: #888; white-space: nowrap; }
+    .task-days.urgente { color: #e74c3c; font-weight: 600; }
+
+    .ob-empty { font-size: 0.82rem; color: #aaa; text-align: center; padding: 8px 0; }
+
+    .refresh-btn {
+      padding: 6px 12px; background: transparent; color: #666;
+      border: 1px solid #ddd; border-radius: 8px; cursor: pointer;
+      font-size: 0.78rem; font-family: inherit;
+    }
+    .refresh-btn:hover { background: #f0f2f5; }
   </style>
 </head>
 <body>
@@ -171,16 +308,163 @@
   </div>
 </header>
 
-<div id="chat"></div>
+<div id="tabs">
+  <button class="tab-btn active" onclick="showTab('chat')">Chat</button>
+  <button class="tab-btn" onclick="showTab('obiettivi')">Obiettivi</button>
+</div>
 
-<div id="input-area">
-  <textarea id="msg" rows="1" placeholder="Cerca un ricambio, chiedi un prezzo, crea un prodotto..."></textarea>
-  <button id="reset-btn" title="Nuova conversazione">Reset</button>
-  <button id="send-btn">Invia</button>
+<div id="main">
+
+  <!-- CHAT -->
+  <div id="panel-chat">
+    <div id="chat"></div>
+    <div id="input-area">
+      <textarea id="msg" rows="1" placeholder="Cerca un ricambio, chiedi un prezzo, crea un prodotto..."></textarea>
+      <button id="reset-btn" title="Nuova conversazione">Reset</button>
+      <button id="send-btn">Invia</button>
+    </div>
+  </div>
+
+  <!-- OBIETTIVI -->
+  <div id="panel-obiettivi">
+
+    <div class="ob-header">
+      <h2>Obiettivi & Task</h2>
+      <button class="refresh-btn" onclick="caricaObiettivi()">Aggiorna</button>
+    </div>
+
+    <!-- Oggi -->
+    <div class="oggi-card">
+      <h3>Focus di oggi</h3>
+      <div class="oggi-task" id="oggi-list">
+        <div class="oggi-vuoto">Caricamento...</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="num" id="stat-ob-attivi">-</div><div class="lbl">Obiettivi attivi</div></div>
+      <div class="stat-card"><div class="num" id="stat-task-sospeso">-</div><div class="lbl">Task in sospeso</div></div>
+      <div class="stat-card"><div class="num" id="stat-task-fatti">-</div><div class="lbl">Completati</div></div>
+    </div>
+
+    <!-- Lista obiettivi -->
+    <div id="ob-list"></div>
+
+  </div>
+
 </div>
 
 <script>
-  const chat = document.getElementById('chat');
+  // ==========================================
+  // TAB NAVIGATION
+  // ==========================================
+  function showTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && tab === 'chat') || (i === 1 && tab === 'obiettivi'));
+    });
+    document.getElementById('panel-chat').style.display = tab === 'chat' ? 'flex' : 'none';
+    const obPanel = document.getElementById('panel-obiettivi');
+    obPanel.classList.toggle('visible', tab === 'obiettivi');
+    if (tab === 'obiettivi') caricaObiettivi();
+  }
+
+  // ==========================================
+  // OBIETTIVI
+  // ==========================================
+  async function caricaObiettivi() {
+    try {
+      const [obRes, oggiRes, statRes] = await Promise.all([
+        fetch('/api/obiettivi').then(r => r.json()),
+        fetch('/api/obiettivi/oggi').then(r => r.json()),
+        fetch('/api/obiettivi/statistiche').then(r => r.json()),
+      ]);
+      renderOggi(oggiRes);
+      renderStats(statRes);
+      renderObiettivi(obRes.obiettivi || []);
+    } catch (e) {
+      console.error('Errore caricamento obiettivi', e);
+    }
+  }
+
+  function renderOggi(data) {
+    const el = document.getElementById('oggi-list');
+    const tasks = data.task_oggi || [];
+    if (!tasks.length) {
+      el.innerHTML = '<div class="oggi-vuoto">' + (data.messaggio || 'Nessun task urgente oggi.') + '</div>';
+      return;
+    }
+    el.innerHTML = tasks.map((t, i) => {
+      const giorni = t.giorni_rimanenti;
+      const scad = giorni != null
+        ? (giorni <= 0 ? 'Scaduto!' : giorni === 1 ? 'Domani' : `${giorni}g`)
+        : '';
+      return `<div class="oggi-task-item">
+        <div class="task-num">${i + 1}</div>
+        <div class="task-info">
+          <div class="task-titolo">${escHtml(t.task)}</div>
+          <div class="task-ob">${escHtml(t.obiettivo)}</div>
+        </div>
+        ${scad ? `<div class="task-badge">${scad}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function renderStats(data) {
+    document.getElementById('stat-ob-attivi').textContent = data.obiettivi?.in_corso ?? '-';
+    document.getElementById('stat-task-sospeso').textContent = data.task?.in_sospeso ?? '-';
+    document.getElementById('stat-task-fatti').textContent = data.task?.completati ?? '-';
+  }
+
+  function renderObiettivi(obiettivi) {
+    const el = document.getElementById('ob-list');
+    if (!obiettivi.length) {
+      el.innerHTML = '<div class="ob-card ob-empty">Nessun obiettivo attivo.<br>Chiedi all\'agente di crearne uno.</div>';
+      return;
+    }
+    el.innerHTML = obiettivi.map(ob => {
+      const giorni = ob.giorni_rimanenti;
+      const scadClass = giorni != null && giorni <= 7 ? 'urgente' : 'ok';
+      const scadTxt = ob.scadenza
+        ? (giorni != null
+            ? (giorni <= 0 ? 'Scaduto!' : `${giorni} giorni rimasti`)
+            : ob.scadenza)
+        : '';
+
+      const taskHtml = ob.task && ob.task.length
+        ? ob.task.map(t => {
+            const tGiorni = t.giorni_rimanenti;
+            const tScad = tGiorni != null
+              ? (tGiorni <= 0 ? 'Scaduto' : tGiorni <= 3 ? `${tGiorni}g ⚠️` : `${tGiorni}g`)
+              : '';
+            const check = t.stato === 'completato' ? '✓' : '';
+            return `<div class="task-item ${t.stato}">
+              <div class="task-check">${check}</div>
+              <div style="flex:1;min-width:0">
+                <div class="task-testo">${escHtml(t.titolo)}</div>
+                ${t.note ? `<div class="task-note">${escHtml(t.note)}</div>` : ''}
+              </div>
+              ${tScad ? `<div class="task-days ${tGiorni != null && tGiorni <= 2 ? 'urgente' : ''}">${tScad}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="ob-empty">Nessun task — chiedi all\'agente di aggiungerli.</div>';
+
+      return `<div class="ob-card">
+        <div class="ob-title-row">
+          <div class="ob-title">${escHtml(ob.titolo)}</div>
+          <span class="ob-badge ${ob.priorita}">${ob.priorita}</span>
+        </div>
+        ${ob.descrizione ? `<div class="ob-meta">${escHtml(ob.descrizione)}</div>` : ''}
+        ${scadTxt ? `<div class="ob-scadenza ${scadClass}">${scadTxt}</div>` : ''}
+        <div class="task-list" style="margin-top:10px">${taskHtml}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ==========================================
+  // CHAT
+  // ==========================================
+  const chatEl = document.getElementById('chat');
   const msgInput = document.getElementById('msg');
   const sendBtn = document.getElementById('send-btn');
   const resetBtn = document.getElementById('reset-btn');
@@ -192,8 +476,8 @@
     const div = document.createElement('div');
     div.className = 'msg ' + tipo;
     div.textContent = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
     return div;
   }
 
@@ -201,38 +485,33 @@
     const div = document.createElement('div');
     div.className = 'msg ' + tipo;
     div.innerHTML = html;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
     return div;
   }
 
-  // Rileva se un testo è un messaggio di piano (contiene passi numerati)
   function isPianoMsg(text) {
     return /PIAN[OI]|^\d+\.\s/im.test(text) && text.includes('\n');
   }
 
   function renderProgress(testo) {
-    // Aggiungi step alla lista progressi
     const stepMatch = testo.match(/^(▶|✓|✗)\s+(.+)$/);
-    if (stepMatch) {
-      progressSteps.push({ icon: stepMatch[1], testo: stepMatch[2] });
-    } else {
-      progressSteps.push({ icon: '⋯', testo });
-    }
+    if (stepMatch) progressSteps.push({ icon: stepMatch[1], testo: stepMatch[2] });
+    else progressSteps.push({ icon: '⋯', testo });
     return progressSteps;
   }
 
   function buildProgressHtml(steps) {
-    if (steps.length === 0) return '';
-    const items = steps.map(s => {
+    if (!steps.length) return '';
+    return '<div class="step-list">' + steps.map(s => {
       const cls = s.icon === '✓' ? 'done' : s.icon === '✗' ? 'pending' : 'active';
       return `<div class="step ${cls}">${s.icon} ${escHtml(s.testo)}</div>`;
-    }).join('');
-    return `<div class="step-list">${items}</div>`;
+    }).join('') + '</div>';
   }
 
   function escHtml(t) {
-    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (!t) return '';
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   async function invia() {
@@ -279,21 +558,19 @@
             if (!progressDiv) {
               progressDiv = document.createElement('div');
               progressDiv.className = 'msg progress';
-              chat.appendChild(progressDiv);
+              chatEl.appendChild(progressDiv);
             }
             progressDiv.innerHTML = buildProgressHtml(steps);
-            chat.scrollTop = chat.scrollHeight;
+            chatEl.scrollTop = chatEl.scrollHeight;
 
           } else if (evento.tipo === 'risposta') {
             if (progressDiv) progressDiv.remove();
-
-            // Rileva messaggi di piano e mostrali con stile dedicato
             const testo_r = evento.testo;
             if (isPianoMsg(testo_r)) {
               const pianoDiv = document.createElement('div');
               pianoDiv.className = 'msg piano';
               pianoDiv.innerHTML = `<div class="piano-header">Piano di esecuzione</div>${escHtml(testo_r).replace(/\n/g, '<br>')}`;
-              chat.appendChild(pianoDiv);
+              chatEl.appendChild(pianoDiv);
             } else {
               let html = escHtml(testo_r).replace(/\n/g, '<br>');
               if (evento.csv_disponibile) {
@@ -301,7 +578,9 @@
               }
               addMsgHtml(html, 'agente');
             }
-            chat.scrollTop = chat.scrollHeight;
+            chatEl.scrollTop = chatEl.scrollHeight;
+            // Aggiorna obiettivi in background dopo ogni risposta
+            caricaObiettivi();
 
           } else if (evento.tipo === 'errore') {
             if (progressDiv) progressDiv.remove();
@@ -318,28 +597,25 @@
   }
 
   sendBtn.addEventListener('click', invia);
-
   msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      invia();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); invia(); }
   });
-
   msgInput.addEventListener('input', () => {
     msgInput.style.height = 'auto';
     msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
   });
-
   resetBtn.addEventListener('click', async () => {
     await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: SESSION_ID }),
     });
-    chat.innerHTML = '';
+    chatEl.innerHTML = '';
     addMsg('Conversazione resettata.', 'progress');
   });
+
+  // Carica obiettivi in background all'avvio
+  caricaObiettivi();
 </script>
 
 </body>
