@@ -65,6 +65,11 @@ La marca va nel titolo, non nello SKU.
 - No codici interni (no "R304", no "OP400")
 - Max 70 caratteri
 
+> ⚠️ Il veicolo principale nel titolo va ricavato dai dati reali del prodotto:
+> dal catalogo AZ Car, dal plugin compatibilità o dalla scheda fornitore.
+> Non inventare mai la compatibilità — se non la conosci, cercala prima
+> tramite `cerca_catalogo` o `naviga_web` prima di creare il prodotto.
+
 ---
 
 ## Formula Descrizione Breve
