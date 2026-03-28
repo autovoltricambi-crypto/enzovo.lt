@@ -172,7 +172,6 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
     agent = Agent(
         task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
         llm=llm,
-        ,
     )
 
     try:
