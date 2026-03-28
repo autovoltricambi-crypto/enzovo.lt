@@ -66,6 +66,7 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
     browser-use naviga il sito con un browser reale e Claude estrae i dati.
     """
     from browser_use import Agent
+    from browser_use.browser.browser import Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     url = CATALOGHI.get(catalogo)
@@ -84,7 +85,7 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         "Restituisci i risultati come lista JSON con campi: titolo, codice, prezzo."
     )
 
-    agent = Agent(task=task, llm=llm)
+    agent = Agent(task=task, llm=llm, browser=Browser(config=BrowserConfig(headless=Config.BROWSER_HEADLESS)))
 
     try:
         history = await agent.run(max_steps=20)
@@ -111,6 +112,7 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     obiettivo: cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 e restituisci prezzi')
     """
     from browser_use import Agent
+    from browser_use.browser.browser import Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     portale_key = portale.lower().replace(" ", "")
@@ -140,7 +142,7 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
         anthropic_api_key=Config.ANTHROPIC_API_KEY,
     )
 
-    agent = Agent(task=" ".join(task_parts), llm=llm)
+    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(config=BrowserConfig(headless=Config.BROWSER_HEADLESS)))
 
     try:
         history = await agent.run(max_steps=30)
@@ -162,6 +164,7 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
       naviga_web("https://www.elring.de/it", "Trova i prodotti per BMW N47 con prezzi")
     """
     from browser_use import Agent
+    from browser_use.browser.browser import Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     llm = ChatAnthropic(
@@ -172,6 +175,7 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
     agent = Agent(
         task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
         llm=llm,
+        browser=Browser(config=BrowserConfig(headless=Config.BROWSER_HEADLESS)),
     )
 
     try:
