@@ -495,6 +495,17 @@ async def chat(
     # Carica contesto persistente dalla memoria
     contesto = carica_contesto_agente()
 
+    # Carica knowledge files critici automaticamente
+    _know_critico = ""
+    for fname in ("azcar-import.md", "plugin-compatibilita.md"):
+        r = leggi_knowledge(fname)
+        if "contenuto" in r:
+            _know_critico += f"\n\n--- {fname} ---\n{r['contenuto']}"
+
+    # Lista di tutti i knowledge file disponibili
+    _know_lista = lista_knowledge()
+    _know_files = ", ".join(_know_lista.get("files", [])) or "nessuno"
+
     system_prompt = f"""Sei un agente AI autonomo e generale. Puoi fare qualsiasi cosa \
 l'utente ti chiede: navigare il web, gestire siti, cercare informazioni, scrivere codice, \
 analizzare dati, creare contenuti, fare ricerche, e molto altro.
@@ -505,6 +516,14 @@ Giri localmente sul PC dell'utente (localhost). Il browser che usi tramite navig
 o accedi_portale_b2b si apre fisicamente sul suo schermo — non sei su un server remoto. \
 Le credenziali per i portali B2B (AZ Car, ecc.) sono già pre-caricate nel sistema: \
 NON chiederle mai all'utente, usa direttamente il tool accedi_portale_b2b.
+
+=== KNOWLEDGE BASE (procedure operative) ==={_know_critico}
+==========================================
+
+=== ALTRI KNOWLEDGE DISPONIBILI ===
+Usa leggi_knowledge(nome_file) per leggere questi file prima di agire su argomenti correlati:
+{_know_files}
+====================================
 
 === CONTESTO (memoria sessioni precedenti) ===
 {contesto}
