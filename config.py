@@ -52,6 +52,9 @@ class Config:
         },
     }
 
+    # Browser-use: False = mostra il browser (utile per debug), True = invisibile
+    BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
+
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, "data")
     EXPORTS_DIR = os.path.join(BASE_DIR, "exports")
