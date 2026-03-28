@@ -29,8 +29,20 @@ Nel portale AZ Car ogni prodotto ha un indicatore di disponibilità:
 
 ## Step 3 — Leggere il Cross-Reference
 
-Per ogni prodotto disponibile, clicca su **"Cross"** (o pulsante equivalente
-di cross-reference nel portale).
+Per ogni prodotto trovato, clicca su **"Cross"** UNA SOLA VOLTA sul prodotto
+principale (il primo risultato della ricerca).
+
+Il cross espande una lista di prodotti equivalenti di altre marche.
+Ognuno di questi ha a sua volta un pulsante "Cross" — **NON cliccarli**.
+Cliccando il cross dei prodotti secondari si entrerebbe in un loop infinito.
+
+**Regola:**
+```
+Prodotto principale → clicca Cross → leggi la lista
+  └── Prodotto secondario A → NON cliccare Cross
+  └── Prodotto secondario B → NON cliccare Cross
+  └── Prodotto secondario C → NON cliccare Cross
+```
 
 Il cross mostra:
 - Il codice del prodotto AZ Car (es. `UFI-23.438.00`)
