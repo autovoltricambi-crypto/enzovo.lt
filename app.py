@@ -166,6 +166,38 @@ async def api_memoria():
     return JSONResponse(statistiche_memoria())
 
 
+@app.get("/api/debug/browser")
+async def debug_browser():
+    """Testa browser-use direttamente e ritorna l'errore grezzo senza filtri."""
+    import traceback
+    risultato: dict = {"versioni": {}, "test": None, "errore": None}
+
+    for pkg in ("browser_use", "langchain_anthropic", "playwright"):
+        try:
+            mod = __import__(pkg)
+            risultato["versioni"][pkg] = getattr(mod, "__version__", "installato")
+        except Exception as e:
+            risultato["versioni"][pkg] = f"NON TROVATO: {e}"
+
+    try:
+        from browser_use import Agent
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(
+            model_name="claude-3-5-haiku-20241022",
+            anthropic_api_key=Config.ANTHROPIC_API_KEY,
+        )
+        agent = Agent(
+            task="Vai su https://example.com e dimmi il titolo della pagina.",
+            llm=llm,
+        )
+        history = await agent.run(max_steps=3)
+        risultato["test"] = history.final_result() or "Completato senza risultato"
+    except Exception:
+        risultato["errore"] = traceback.format_exc()
+
+    return JSONResponse(risultato)
+
+
 if __name__ == "__main__":
     import uvicorn
     print(f"\nAgente Ricambi Auto — http://{Config.HOST}:{Config.PORT}\n")
