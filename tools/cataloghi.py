@@ -65,14 +65,14 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
     Cerca un prodotto su un catalogo B2B usando browser-use.
     browser-use naviga il sito con un browser reale e Claude estrae i dati.
     """
-    from browser_use import Agent, Browser, ChatAnthropic
+    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
 
     url = CATALOGHI.get(catalogo)
     if not url:
         return {"errore": f"Catalogo '{catalogo}' non supportato. Scegli tra: {list(CATALOGHI.keys())}"}
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         api_key=Config.ANTHROPIC_API_KEY,
     )
 
@@ -83,7 +83,7 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         "Restituisci i risultati come lista JSON con campi: titolo, codice, prezzo."
     )
 
-    agent = Agent(task=task, llm=llm, browser=Browser(headless=Config.BROWSER_HEADLESS))
+    agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)))
 
     try:
         history = await agent.run(max_steps=20)
@@ -109,7 +109,7 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     portale: chiave del portale (es: 'azcar', 'elring', 'corteco', 'valeo', 'autodoc')
     obiettivo: cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 e restituisci prezzi')
     """
-    from browser_use import Agent, Browser, ChatAnthropic
+    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
 
     portale_key = portale.lower().replace(" ", "")
     info = Config.PORTALI_B2B.get(portale_key)
@@ -134,11 +134,11 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     task_parts.append("Rispondi in italiano con i dati trovati.")
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         api_key=Config.ANTHROPIC_API_KEY,
     )
 
-    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(headless=Config.BROWSER_HEADLESS))
+    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)))
 
     try:
         history = await agent.run(max_steps=30)
@@ -159,17 +159,17 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
       naviga_web("https://www.autodoc.it", "Elenca le categorie principali del sito")
       naviga_web("https://www.elring.de/it", "Trova i prodotti per BMW N47 con prezzi")
     """
-    from browser_use import Agent, Browser, ChatAnthropic
+    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         api_key=Config.ANTHROPIC_API_KEY,
     )
 
     agent = Agent(
         task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
         llm=llm,
-        browser=Browser(headless=Config.BROWSER_HEADLESS),
+        browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)),
     )
 
     try:
