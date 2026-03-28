@@ -19,11 +19,14 @@ Lo SKU è il codice articolo univoco nel sistema WooCommerce. Va compilato sempr
 [MARCA]-[CODICE_FORNITORE]
 ```
 
+Lo SKU è solo un codice tecnico interno — **non sostituisce il titolo**.
+Il titolo deve sempre dire cos'è il prodotto in italiano leggibile.
+
 **Esempi corretti:**
-- `UFI-23.438.00` (filtro olio UFI, codice fornitore 23.438.00)
-- `MANN-C26110` (filtro aria Mann, codice C26110)
-- `DAYCO-KTB459` (kit distribuzione Dayco, codice KTB459)
-- `JAPANPARTS-FO101S` (filtro olio Japanparts)
+- SKU: `UFI-23.438.00` → Titolo: "Filtro Olio UFI BMW Serie 3 2.0d N47"
+- SKU: `MANN-C26110` → Titolo: "Filtro Aria Mann Fiat Punto 1.4 Natural Power"
+- SKU: `DAYCO-KTB459` → Titolo: "Kit Distribuzione Dayco Fiat 1.3 Multijet 16V"
+- SKU: `JAPANPARTS-FO101S` → Titolo: "Filtro Olio Japanparts Toyota Yaris 1.0 1.3"
 
 **Regole SKU:**
 - Sempre `[MARCA MAIUSCOLO]-[codice fornitore originale]`
@@ -48,6 +51,10 @@ Lo SKU è il codice articolo univoco nel sistema WooCommerce. Va compilato sempr
 [Marca] [Tipo Ricambio] [Auto/Motore principale]
 ```
 
+> ⚠️ Il **tipo ricambio** è obbligatorio nel titolo — deve essere sempre presente
+> e leggibile (es. "Filtro Olio", "Kit Distribuzione", "Pastiglie Freni").
+> Non scrivere mai solo marca + codice (es. "UFI 23.438.00" è sbagliato).
+
 **Esempi corretti:**
 - "Filtro Olio UFI BMW Serie 3 2.0d N47"
 - "Filtro Aria Mann BMW 320d E90 E91 E92"
@@ -65,9 +72,12 @@ Lo SKU è il codice articolo univoco nel sistema WooCommerce. Va compilato sempr
 
 ## Formula Descrizione Breve
 
+La descrizione breve deve sempre iniziare con il **tipo di prodotto** in italiano,
+seguito da marca, veicolo di riferimento e codice OE se spazio.
+
 ```
 [Tipo ricambio] [marca] di qualità OEM per [auto] con motore [motorizzazione].
-Compatibile con [anni]. [Eventuale certificazione o nota qualità].
+Codice OE: [codice]. [Eventuale nota qualità].
 ```
 
 **Esempio:**
