@@ -713,7 +713,7 @@ async def chat(
 
     # Carica knowledge files critici automaticamente
     _know_critico = ""
-    for fname in ("azcar-import.md", "plugin-compatibilita.md"):
+    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md"):
         r = leggi_knowledge(fname)
         if "contenuto" in r:
             _know_critico += f"\n\n--- {fname} ---\n{r['contenuto']}"
