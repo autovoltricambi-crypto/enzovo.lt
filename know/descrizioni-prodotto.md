@@ -16,17 +16,17 @@ Lo SKU è il codice articolo univoco nel sistema WooCommerce. Va compilato sempr
 
 ### Formato SKU
 ```
-[MARCA]-[CODICE_FORNITORE]
+[CODICE_FORNITORE]
 ```
 
-Lo SKU è solo un codice tecnico interno — **non sostituisce il titolo**.
-Il titolo deve sempre dire cos'è il prodotto in italiano leggibile.
+Lo SKU è il codice del fornitore/ricambista — **solo il codice, senza la marca**.
+La marca va nel titolo, non nello SKU.
 
 **Esempi corretti:**
-- SKU: `UFI-23.438.00` → Titolo: "Filtro Olio UFI BMW Serie 3 2.0d N47"
-- SKU: `MANN-C26110` → Titolo: "Filtro Aria Mann Fiat Punto 1.4 Natural Power"
-- SKU: `DAYCO-KTB459` → Titolo: "Kit Distribuzione Dayco Fiat 1.3 Multijet 16V"
-- SKU: `JAPANPARTS-FO101S` → Titolo: "Filtro Olio Japanparts Toyota Yaris 1.0 1.3"
+- SKU: `23.438.00` → Titolo: "Filtro Olio UFI BMW Serie 3 2.0d N47"
+- SKU: `C26110` → Titolo: "Filtro Aria Mann Fiat Punto 1.4 Natural Power"
+- SKU: `KTB459` → Titolo: "Kit Distribuzione Dayco Fiat 1.3 Multijet 16V"
+- SKU: `FO101S` → Titolo: "Filtro Olio Japanparts Toyota Yaris 1.0 1.3"
 
 **Regole SKU:**
 - Sempre `[MARCA MAIUSCOLO]-[codice fornitore originale]`
@@ -38,10 +38,10 @@ Il titolo deve sempre dire cos'è il prodotto in italiano leggibile.
 ### SKU vs altri codici
 | Campo | Esempio | Uso |
 |-------|---------|-----|
-| SKU WooCommerce | `UFI-23.438.00` | Identificatore prodotto nel sito |
-| Codice OE | `11427566327` | Codice originale BMW — per ricerca e SEO |
+| SKU WooCommerce | `23.438.00` | Codice fornitore — solo il codice, senza marca |
+| Attributo "Marca ricambio" | `UFI` | Marca del ricambio — va come attributo WooCommerce, non nel SKU |
+| Codice OE | `11427566327` | Codice originale casa costruttrice — per ricerca e SEO |
 | related_sku_code | `R304` | Codice interno Tecnocar — solo per uso interno |
-| Codice fornitore | `23.438.00` | Codice del ricambista (UFI, Mann, ecc.) |
 
 ---
 
@@ -135,7 +135,7 @@ Sostituire ogni [km/mesi]. Verificare il corretto serraggio.
 >
 > **Codici di riferimento:**
 > - Codice OE BMW: 11427566327
-> - Codice articolo: UFI-23.438.00
+> - Codice articolo (SKU): 23.438.00
 >
 > Intervallo di sostituzione consigliato: ogni 15.000 km o 12 mesi.
 
@@ -154,7 +154,7 @@ Sostituire ogni [km/mesi]. Verificare il corretto serraggio.
 >
 > **Codici di riferimento:**
 > - Codice OE Fiat: 46479703
-> - Codice articolo (SKU): MANN-C26110
+> - Codice articolo (SKU): C26110
 >
 > Sostituire ogni 30.000 km o 24 mesi.
 
@@ -177,7 +177,7 @@ Sostituire ogni [km/mesi]. Verificare il corretto serraggio.
 >
 > **Codici di riferimento:**
 > - Codice OE Fiat: 71753180
-> - Codice articolo (SKU): DAYCO-KTB459
+> - Codice articolo (SKU): KTB459
 >
 > Sostituzione consigliata ogni 120.000 km o 8 anni.
 
@@ -186,7 +186,7 @@ Sostituire ogni [km/mesi]. Verificare il corretto serraggio.
 ## Regole Generali
 
 ### DA FARE ✅
-- Compilare sempre lo **SKU** nel formato `[MARCA]-[codice_fornitore]` (es. `UFI-23.438.00`)
+- Compilare sempre lo **SKU** con il solo codice fornitore (es. `23.438.00`, `C26110`)
 - Includere il codice OE (originale casa costruttrice) nella sezione "Codici di riferimento"
 - Menzionare nel testo il veicolo/motore principale (1-2 righe di contesto)
 - Menzionare il marchio del ricambio (UFI, Mann, Dayco, ecc.)
@@ -208,7 +208,7 @@ Sostituire ogni [km/mesi]. Verificare il corretto serraggio.
 | Campo | Lunghezza / Formato |
 |-------|---------------------|
 | Titolo | 50–70 caratteri |
-| SKU | `[MARCA]-[codice_fornitore]` (es. `UFI-23.438.00`) |
+| SKU | Solo codice fornitore (es. `23.438.00`, `C26110`, `KTB459`) |
 | Descrizione breve | 150–200 caratteri |
 | Descrizione completa | 300–600 parole |
 
