@@ -29,6 +29,8 @@ from tools.memoria import (
     carica_conoscenze,
     lista_knowledge,
     leggi_knowledge,
+    aggiorna_knowledge,
+    crea_knowledge,
 )
 
 Config.validate()
@@ -390,6 +392,38 @@ TOOLS = [
         },
     },
     {
+        "name": "aggiorna_knowledge",
+        "description": (
+            "Sovrascrive un file di knowledge esistente in data/know/ con un nuovo contenuto. "
+            "Usalo quando l'utente ti segnala che un'informazione in un know file è errata o da aggiornare. "
+            "Prima leggi il file con leggi_knowledge, poi apporta le correzioni e riscrivi il contenuto completo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string", "description": "Nome del file da aggiornare (es: 'seo-ricambi-auto.md')"},
+                "contenuto": {"type": "string", "description": "Nuovo contenuto completo del file in formato Markdown"},
+            },
+            "required": ["nome_file", "contenuto"],
+        },
+    },
+    {
+        "name": "crea_knowledge",
+        "description": (
+            "Crea un nuovo file di knowledge in data/know/. "
+            "Usalo quando l'utente chiede di aggiungere un nuovo argomento alla knowledge base, "
+            "o quando scopri che manca documentazione utile per un'area specifica."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string", "description": "Nome del nuovo file (es: 'nuovo-argomento.md')"},
+                "contenuto": {"type": "string", "description": "Contenuto del file in formato Markdown"},
+            },
+            "required": ["nome_file", "contenuto"],
+        },
+    },
+    {
         "name": "salva_nota",
         "description": "Salva una nota per riferimento futuro.",
         "input_schema": {
@@ -459,6 +493,10 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return esporta_csv(**input_dict)
     elif name == "leggi_knowledge":
         return leggi_knowledge(**input_dict)
+    elif name == "aggiorna_knowledge":
+        return aggiorna_knowledge(**input_dict)
+    elif name == "crea_knowledge":
+        return crea_knowledge(**input_dict)
     elif name == "aggiorna_contesto_sito":
         return aggiorna_contesto_sito(**input_dict)
     elif name == "leggi_contesto_sito":

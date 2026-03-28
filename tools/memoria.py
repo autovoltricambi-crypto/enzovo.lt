@@ -173,6 +173,66 @@ def leggi_knowledge(nome_file: str | None = None) -> dict:
         return {"errore": str(e)}
 
 
+def aggiorna_knowledge(nome_file: str, contenuto: str) -> dict:
+    """
+    Sovrascrive un file di knowledge esistente in data/know/.
+    Usato dall'agente per correggere informazioni errate segnalate dall'utente.
+    nome_file: es. 'seo-ricambi-auto.md' (solo il nome, non il percorso)
+    contenuto: nuovo contenuto completo del file in formato Markdown
+    """
+    # Sicurezza: impedisci path traversal
+    nome_file = os.path.basename(nome_file)
+    if not nome_file.endswith(".md"):
+        return {"errore": "Solo file .md sono modificabili"}
+
+    percorso = os.path.join(Config.KNOW_DIR, nome_file)
+
+    if not os.path.exists(percorso):
+        disponibili = lista_knowledge()["files"]
+        return {"errore": f"File '{nome_file}' non trovato. Disponibili: {disponibili}"}
+
+    try:
+        with open(percorso, "w", encoding="utf-8") as f:
+            f.write(contenuto)
+        return {
+            "successo": True,
+            "file": nome_file,
+            "caratteri": len(contenuto),
+            "messaggio": f"File '{nome_file}' aggiornato correttamente",
+        }
+    except Exception as e:
+        return {"errore": str(e)}
+
+
+def crea_knowledge(nome_file: str, contenuto: str) -> dict:
+    """
+    Crea un nuovo file di knowledge in data/know/.
+    nome_file: es. 'nuovo-argomento.md' (solo il nome, non il percorso)
+    contenuto: contenuto del file in formato Markdown
+    """
+    nome_file = os.path.basename(nome_file)
+    if not nome_file.endswith(".md"):
+        return {"errore": "Solo file .md sono supportati"}
+
+    os.makedirs(Config.KNOW_DIR, exist_ok=True)
+    percorso = os.path.join(Config.KNOW_DIR, nome_file)
+
+    if os.path.exists(percorso):
+        return {"errore": f"File '{nome_file}' esiste già. Usa aggiorna_knowledge per modificarlo."}
+
+    try:
+        with open(percorso, "w", encoding="utf-8") as f:
+            f.write(contenuto)
+        return {
+            "successo": True,
+            "file": nome_file,
+            "caratteri": len(contenuto),
+            "messaggio": f"File '{nome_file}' creato correttamente",
+        }
+    except Exception as e:
+        return {"errore": str(e)}
+
+
 def carica_conoscenze() -> str:
     """
     Carica tutti i file .md da data/know/ e li concatena in una stringa
