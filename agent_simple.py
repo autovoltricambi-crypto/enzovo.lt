@@ -28,6 +28,7 @@ from tools.memoria import (
     carica_contesto_agente,
     carica_conoscenze,
     lista_knowledge,
+    leggi_knowledge,
 )
 
 Config.validate()
