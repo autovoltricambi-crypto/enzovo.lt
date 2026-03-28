@@ -65,8 +65,7 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
     Cerca un prodotto su un catalogo B2B usando browser-use.
     browser-use naviga il sito con un browser reale e Claude estrae i dati.
     """
-    from browser_use import Agent
-    from browser_use.browser.browser import Browser, BrowserConfig
+    from browser_use import Agent, Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     url = CATALOGHI.get(catalogo)
@@ -74,8 +73,8 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         return {"errore": f"Catalogo '{catalogo}' non supportato. Scegli tra: {list(CATALOGHI.keys())}"}
 
     llm = ChatAnthropic(
-        model_name="claude-3-5-haiku-20241022",
-        anthropic_api_key=Config.ANTHROPIC_API_KEY,
+        model="claude-3-5-haiku-20241022",
+        api_key=Config.ANTHROPIC_API_KEY,
     )
 
     task = (
@@ -111,8 +110,7 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     portale: chiave del portale (es: 'azcar', 'elring', 'corteco', 'valeo', 'autodoc')
     obiettivo: cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 e restituisci prezzi')
     """
-    from browser_use import Agent
-    from browser_use.browser.browser import Browser, BrowserConfig
+    from browser_use import Agent, Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     portale_key = portale.lower().replace(" ", "")
@@ -138,8 +136,8 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     task_parts.append("Rispondi in italiano con i dati trovati.")
 
     llm = ChatAnthropic(
-        model_name="claude-3-5-haiku-20241022",
-        anthropic_api_key=Config.ANTHROPIC_API_KEY,
+        model="claude-3-5-haiku-20241022",
+        api_key=Config.ANTHROPIC_API_KEY,
     )
 
     agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(config=BrowserConfig(headless=Config.BROWSER_HEADLESS)))
@@ -163,13 +161,12 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
       naviga_web("https://www.autodoc.it", "Elenca le categorie principali del sito")
       naviga_web("https://www.elring.de/it", "Trova i prodotti per BMW N47 con prezzi")
     """
-    from browser_use import Agent
-    from browser_use.browser.browser import Browser, BrowserConfig
+    from browser_use import Agent, Browser, BrowserConfig
     from langchain_anthropic import ChatAnthropic
 
     llm = ChatAnthropic(
-        model_name="claude-3-5-haiku-20241022",
-        anthropic_api_key=Config.ANTHROPIC_API_KEY,
+        model="claude-3-5-haiku-20241022",
+        api_key=Config.ANTHROPIC_API_KEY,
     )
 
     agent = Agent(
