@@ -73,8 +73,8 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         return {"errore": f"Catalogo '{catalogo}' non supportato. Scegli tra: {list(CATALOGHI.keys())}"}
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
-        api_key=Config.ANTHROPIC_API_KEY,
+        model_name="claude-3-5-haiku-20241022",
+        anthropic_api_key=Config.ANTHROPIC_API_KEY,
     )
 
     task = (
@@ -136,8 +136,8 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     task_parts.append("Rispondi in italiano con i dati trovati.")
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
-        api_key=Config.ANTHROPIC_API_KEY,
+        model_name="claude-3-5-haiku-20241022",
+        anthropic_api_key=Config.ANTHROPIC_API_KEY,
     )
 
     agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(headless=Config.BROWSER_HEADLESS))
@@ -165,8 +165,8 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
     from langchain_anthropic import ChatAnthropic
 
     llm = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
-        api_key=Config.ANTHROPIC_API_KEY,
+        model_name="claude-3-5-haiku-20241022",
+        anthropic_api_key=Config.ANTHROPIC_API_KEY,
     )
 
     agent = Agent(
