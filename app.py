@@ -166,6 +166,23 @@ async def api_memoria():
     return JSONResponse(statistiche_memoria())
 
 
+@app.get("/api/debug/config")
+async def debug_config():
+    """Mostra la configurazione caricata dal .env (password oscurate)."""
+    portali = {}
+    for nome, info in Config.PORTALI_B2B.items():
+        portali[nome] = {
+            "url": info["url"] or "❌ VUOTO",
+            "user": info["user"] or "❌ VUOTO",
+            "password": "***" if info["password"] else "❌ VUOTO",
+        }
+    return JSONResponse({
+        "wp_url": Config.WP_URL or "❌ VUOTO",
+        "wp_user": Config.WP_USER or "❌ VUOTO",
+        "portali": portali,
+    })
+
+
 @app.get("/api/debug/browser")
 async def debug_browser():
     """Testa browser-use direttamente e ritorna l'errore grezzo senza filtri."""
