@@ -16,6 +16,7 @@ async def crea_prodotto(
     sku: str,
     stock: int = 0,
     categoria: str = None,
+    related_sku_code: str = None,
 ) -> dict:
     """Crea un nuovo prodotto WooCommerce."""
     client = get_wp_client()
@@ -29,6 +30,9 @@ async def crea_prodotto(
         "stock_quantity": stock,
         "status": "publish",
     }
+
+    if related_sku_code:
+        payload["meta_data"] = [{"key": "related_sku_code", "value": related_sku_code}]
 
     if categoria:
         # Cerca o crea la categoria
@@ -285,6 +289,9 @@ async def importa_prodotti_bulk(prodotti: list) -> dict:
         tasks = []
         for p in batch:
             attributi = p.pop("attributi", None)
+            related_sku_code = p.pop("related_sku_code", None)
+            if related_sku_code:
+                p["related_sku_code"] = related_sku_code
             tasks.append(_crea_e_attributi(p, attributi))
 
         risultati = await asyncio.gather(*tasks, return_exceptions=True)
