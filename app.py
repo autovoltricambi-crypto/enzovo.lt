@@ -181,14 +181,17 @@ async def debug_browser():
 
     try:
         from browser_use import Agent
+        from browser_use.browser.browser import Browser, BrowserConfig
         from langchain_anthropic import ChatAnthropic
         llm = ChatAnthropic(
             model_name="claude-3-5-haiku-20241022",
             anthropic_api_key=Config.ANTHROPIC_API_KEY,
         )
+        browser = Browser(config=BrowserConfig(headless=False))
         agent = Agent(
             task="Vai su https://example.com e dimmi il titolo della pagina.",
             llm=llm,
+            browser=browser,
         )
         history = await agent.run(max_steps=3)
         risultato["test"] = history.final_result() or "Completato senza risultato"
