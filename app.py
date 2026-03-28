@@ -197,13 +197,12 @@ async def debug_browser():
             risultato["versioni"][pkg] = f"NON TROVATO: {e}"
 
     try:
-        from browser_use import Agent, Browser, BrowserConfig
-        from langchain_anthropic import ChatAnthropic
+        from browser_use import Agent, Browser, ChatAnthropic
         llm = ChatAnthropic(
             model="claude-3-5-haiku-20241022",
             api_key=Config.ANTHROPIC_API_KEY,
         )
-        browser = Browser(config=BrowserConfig(headless=False))
+        browser = Browser(headless=False)
         agent = Agent(
             task="Vai su https://example.com e dimmi il titolo della pagina.",
             llm=llm,
