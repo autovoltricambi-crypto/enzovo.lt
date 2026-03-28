@@ -15,8 +15,8 @@ async def crea_prodotto(
     descrizione: str,
     sku: str,
     stock: int = 0,
-    categoria: str = None,
-    related_sku_code: str = None,
+    categoria: str | None = None,
+    related_sku_code: str | None = None,
 ) -> dict:
     """Crea un nuovo prodotto WooCommerce."""
     client = get_wp_client()
@@ -55,10 +55,10 @@ async def crea_prodotto(
 
 async def modifica_prodotto(
     product_id: int,
-    nome: str = None,
-    prezzo: float = None,
-    descrizione: str = None,
-    stock: int = None,
+    nome: str | None = None,
+    prezzo: float | None = None,
+    descrizione: str | None = None,
+    stock: int | None = None,
 ) -> dict:
     """Modifica un prodotto WooCommerce esistente."""
     client = get_wp_client()
@@ -87,14 +87,14 @@ async def modifica_prodotto(
 
 
 async def lista_prodotti(
-    search: str = None,
-    categoria: str = None,
+    search: str | None = None,
+    categoria: str | None = None,
     limit: int = 100,
 ) -> dict:
     """Elenca prodotti WooCommerce con filtri opzionali."""
     client = get_wp_client()
 
-    params = {"per_page": min(limit, 100)}
+    params: dict = {"per_page": min(limit, 100)}
     if search:
         params["search"] = search
     if categoria:
@@ -140,7 +140,7 @@ async def _get_or_create_categoria(client: httpx.AsyncClient, nome: str) -> int 
 async def crea_pagina_html(
     titolo: str,
     contenuto_html: str,
-    slug: str = None,
+    slug: str | None = None,
     stato: str = "draft",
 ) -> dict:
     """Crea una nuova pagina WordPress con contenuto HTML."""
@@ -170,8 +170,8 @@ async def crea_pagina_html(
 async def scrivi_pagina_html(
     page_id: int,
     contenuto_html: str,
-    titolo: str = None,
-    stato: str = None,
+    titolo: str | None = None,
+    stato: str | None = None,
 ) -> dict:
     """Modifica il contenuto HTML di una pagina WordPress esistente."""
     client = get_wp_client()
@@ -296,8 +296,8 @@ async def importa_prodotti_bulk(prodotti: list) -> dict:
 
         risultati = await asyncio.gather(*tasks, return_exceptions=True)
         for r in risultati:
-            if isinstance(r, Exception) or r.get("errore"):
-                falliti.append(r if not isinstance(r, Exception) else {"errore": str(r)})
+            if isinstance(r, Exception) or (isinstance(r, dict) and r.get("errore")):
+                falliti.append({"errore": str(r)} if isinstance(r, Exception) else r)
             else:
                 importati.append(r)
 
@@ -309,7 +309,7 @@ async def importa_prodotti_bulk(prodotti: list) -> dict:
     }
 
 
-async def _crea_e_attributi(prodotto: dict, attributi: dict = None) -> dict:
+async def _crea_e_attributi(prodotto: dict, attributi: dict | None = None) -> dict:
     """Helper: crea prodotto e aggiunge attributi se presenti."""
     result = await crea_prodotto(**prodotto)
     if result.get("errore") or not attributi:

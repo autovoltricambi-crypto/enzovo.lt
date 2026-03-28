@@ -36,7 +36,7 @@ def salva_ricerca(query: str, catalogo: str, risultati_trovati: int) -> dict:
     return {"successo": True, "ricerche_totali": len(memoria["ricerche"])}
 
 
-def cerca_in_memoria(query: str, tipo: str = None) -> dict:
+def cerca_in_memoria(query: str, tipo: str | None = None) -> dict:
     """
     Cerca nelle ricerche, prodotti o note salvate.
     tipo: 'ricerche' | 'prodotti' | 'note' | None (cerca ovunque)
@@ -94,7 +94,7 @@ def aggiorna_contesto_sito(chiave: str, valore: str) -> dict:
     return {"successo": True, "chiave": chiave, "valore": valore}
 
 
-def leggi_contesto_sito(chiave: str = None) -> dict:
+def leggi_contesto_sito(chiave: str | None = None) -> dict:
     """
     Legge il contesto del sito. Se chiave=None ritorna tutto il contesto.
     Usato dall'agente per recuperare decisioni e stato accumulati.
@@ -150,7 +150,7 @@ def lista_knowledge() -> dict:
     return {"files": files, "path": Config.KNOW_DIR}
 
 
-def leggi_knowledge(nome_file: str = None) -> dict:
+def leggi_knowledge(nome_file: str | None = None) -> dict:
     """
     Legge un file di knowledge da data/know/.
     Se nome_file è None, ritorna la lista dei file disponibili.
