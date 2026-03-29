@@ -147,10 +147,12 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     llm = ChatAnthropic(
         model="claude-sonnet-4-5",
         api_key=Config.ANTHROPIC_API_KEY,
+        model_kwargs={"thinking": {"type": "disabled"}},
     )
 
     profile = BrowserProfile(
         headless=Config.BROWSER_HEADLESS,
+        wait_for_network_idle_page_load_time=5,
         **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
            if Config.CHROME_USER_DATA_DIR else {}),
     )
