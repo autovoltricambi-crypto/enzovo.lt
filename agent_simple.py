@@ -1,6 +1,9 @@
 import json
 import asyncio
+import logging
 from anthropic import AsyncAnthropic
+
+logger = logging.getLogger(__name__)
 
 from config import Config
 from tools.obiettivi import (
@@ -862,8 +865,38 @@ REGOLE ADHD:
     max_iterations = 30
     iteration = 0
 
+    def _content_to_dicts(content_blocks) -> list:
+        """Converte ContentBlock SDK objects in dicts serializzabili."""
+        result = []
+        for block in content_blocks:
+            if block.type == "text":
+                result.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                result.append({
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input,
+                })
+        return result
+
     while iteration < max_iterations:
         iteration += 1
+
+        # Debug: log stato cronologia prima di ogni chiamata API
+        logger.info(f"[CHAT] Iterazione {iteration}, messaggi in cronologia: {len(cronologia)}")
+        for i, msg in enumerate(cronologia):
+            c = msg.get("content", "")
+            if isinstance(c, list):
+                types = []
+                for b in c:
+                    if isinstance(b, dict):
+                        types.append(b.get("type", "?"))
+                    else:
+                        types.append(getattr(b, "type", "?"))
+                logger.info(f"  [{i}] {msg['role']}: {types}")
+            else:
+                logger.info(f"  [{i}] {msg['role']}: text ({len(str(c))} chars)")
 
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -928,11 +961,12 @@ REGOLE ADHD:
                 ]
 
             # Append ATOMICO — assistant + user insieme, mai separati
-            cronologia.append({"role": "assistant", "content": response.content})
+            # Converti ContentBlock SDK → dicts puliti per evitare problemi di serializzazione
+            cronologia.append({"role": "assistant", "content": _content_to_dicts(response.content)})
             cronologia.append({"role": "user", "content": list(tool_results)})
 
         elif response.stop_reason == "max_tokens":
-            cronologia.append({"role": "assistant", "content": response.content})
+            cronologia.append({"role": "assistant", "content": _content_to_dicts(response.content)})
             if progress_callback:
                 await progress_callback("Continuo l'elaborazione...")
 
