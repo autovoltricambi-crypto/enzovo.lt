@@ -36,6 +36,25 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 conversazioni: dict[str, list] = {}
 
 
+def _ripulisci_cronologia_corrotta(cronologia: list) -> None:
+    """Rimuove tool_use blocks senza tool_result corrispondente dalla cronologia.
+    Chiamata automaticamente quando l'API Anthropic restituisce un 400 per questa causa.
+    """
+    for i in range(len(cronologia) - 1, -1, -1):
+        msg = cronologia[i]
+        if msg.get("role") == "assistant":
+            content = msg.get("content", [])
+            has_tool_use = (
+                isinstance(content, list)
+                and any(getattr(b, "type", None) == "tool_use" or
+                        (isinstance(b, dict) and b.get("type") == "tool_use")
+                        for b in content)
+            )
+            if has_tool_use and i + 1 >= len(cronologia):
+                cronologia.pop(i)
+            break
+
+
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
     html_path = STATIC_DIR / "index.html"
@@ -96,6 +115,10 @@ async def api_chat(request: Request):
                 "csv_disponibile": csv_file,
             })
         except Exception as e:
+            # Se la cronologia è corrotta (tool_use senza tool_result), ripuliscila
+            # così il prossimo messaggio funziona normalmente
+            if "tool_use" in str(e) and "tool_result" in str(e):
+                _ripulisci_cronologia_corrotta(conversazioni.get(session_id, []))
             await coda.put({"tipo": "errore", "testo": str(e)})
 
     async def sse_generator():

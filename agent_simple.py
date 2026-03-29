@@ -884,7 +884,6 @@ REGOLE ADHD:
 
         elif response.stop_reason == "tool_use":
             tool_uses = [b for b in response.content if b.type == "tool_use"]
-            cronologia.append({"role": "assistant", "content": response.content})
 
             # Esegui tool multipli IN PARALLELO
             if progress_callback and len(tool_uses) > 1:
@@ -901,7 +900,7 @@ REGOLE ADHD:
                         await progress_callback(f"{stato} {tool_use.name} completato")
                     content = json.dumps(result, ensure_ascii=False)
                     is_error = bool(result.get("errore"))
-                except BaseException as e:
+                except Exception as e:
                     content = json.dumps({"errore": str(e)}, ensure_ascii=False)
                     is_error = True
                     if progress_callback:
@@ -913,7 +912,23 @@ REGOLE ADHD:
                     "is_error": is_error,
                 }
 
-            tool_results = await asyncio.gather(*[run_tool(t) for t in tool_uses])
+            # Raccogli tutti i risultati PRIMA di toccare la cronologia
+            try:
+                tool_results = await asyncio.gather(*[run_tool(t) for t in tool_uses])
+            except Exception as e:
+                # gather fallito — crea tool_result di errore per ogni tool
+                tool_results = [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": t.id,
+                        "content": json.dumps({"errore": str(e)}, ensure_ascii=False),
+                        "is_error": True,
+                    }
+                    for t in tool_uses
+                ]
+
+            # Append ATOMICO — assistant + user insieme, mai separati
+            cronologia.append({"role": "assistant", "content": response.content})
             cronologia.append({"role": "user", "content": list(tool_results)})
 
         elif response.stop_reason == "max_tokens":
