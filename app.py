@@ -244,6 +244,13 @@ async def api_statistiche_obiettivi():
     return JSONResponse(statistiche_obiettivi())
 
 
+@app.get("/api/gamification")
+async def api_gamification():
+    """Ritorna punteggio XP, streak e achievement."""
+    from tools.obiettivi import stato_gamification
+    return JSONResponse(stato_gamification())
+
+
 if __name__ == "__main__":
     import uvicorn
     print(f"\nAgente Ricambi Auto — http://{Config.HOST}:{Config.PORT}\n")

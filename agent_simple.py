@@ -13,6 +13,7 @@ from tools.obiettivi import (
     priorita_oggi,
     priorita_periodo,
     statistiche_obiettivi,
+    stato_gamification,
 )
 from tools.wordpress_write import (
     crea_prodotto,
@@ -575,6 +576,15 @@ TOOLS = [
         "description": "Ritorna un riepilogo del progresso: quanti obiettivi e task completati vs in sospeso.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "stato_gamification",
+        "description": (
+            "Ritorna punteggio XP, streak giorni, achievement sbloccati e prossimo achievement. "
+            "Usalo per motivare l'utente: 'Sei a 240 XP, ancora 60 e sblocchi Primo Centinaio!' "
+            "Usalo all'inizio sessione e quando un task viene completato."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -667,6 +677,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return priorita_periodo(**input_dict)
     elif name == "statistiche_obiettivi":
         return statistiche_obiettivi()
+    elif name == "stato_gamification":
+        return stato_gamification()
     else:
         return {"errore": f"Tool sconosciuto: {name}"}
 
@@ -711,9 +723,22 @@ async def chat(
     else:
         _ob_str = "Nessun obiettivo salvato — chiedi all'utente a cosa sta puntando."
 
+    # Carica stato gamification
+    from tools.obiettivi import stato_gamification as _sg
+    _gam = _sg()
+    _streak = _gam.get("streak_giorni", 0)
+    _xp = _gam.get("punteggio_totale", 0)
+    _ach_ultimo = _gam.get("ultimo_achievement")
+    _ach_prossimo = _gam.get("prossimo_achievement")
+    _gam_str = f"XP totali: {_xp} | Streak: {_streak} giorni"
+    if _ach_ultimo:
+        _gam_str += f" | Ultimo achievement: {_ach_ultimo['titolo']}"
+    if _ach_prossimo:
+        _gam_str += f" | Prossimo: '{_ach_prossimo['titolo']}' (mancano {_ach_prossimo['mancano']} {_ach_prossimo['tipo'].replace('_', ' ')})"
+
     # Carica knowledge files critici automaticamente
     _know_critico = ""
-    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md"):
+    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md", "agente-motivazione.md"):
         r = leggi_knowledge(fname)
         if "contenuto" in r:
             _know_critico += f"\n\n--- {fname} ---\n{r['contenuto']}"
@@ -764,6 +789,11 @@ NON chiederle mai all'utente, usa direttamente il tool accedi_portale_b2b.
 Usa leggi_knowledge(nome_file) per leggere questi file prima di agire su argomenti correlati:
 {_know_files}
 ====================================
+
+=== GAMIFICATION (sistema ricompensa) ===
+{_gam_str}
+Usa questi dati per motivare l'utente durante la sessione.
+=========================================
 
 === OBIETTIVI ATTIVI (priorità settimana/mese) ===
 {_ob_str}

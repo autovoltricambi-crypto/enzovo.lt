@@ -220,6 +220,26 @@
     }
     .oggi-vuoto { text-align: center; opacity: 0.7; font-size: 0.88rem; padding: 10px 0; }
 
+    /* Gamification row */
+    .gam-row {
+      background: #fff;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      font-size: 0.82rem;
+    }
+    .gam-item { display: flex; align-items: center; gap: 5px; color: #444; }
+    .gam-item strong { color: #1a1a2e; }
+    .gam-achievement {
+      margin-left: auto; font-size: 0.75rem; color: #e67e22;
+      background: #fff8ee; padding: 3px 8px; border-radius: 8px;
+      border: 1px solid #f39c12;
+    }
+
     /* Statistiche */
     .stats-row {
       display: grid;
@@ -341,6 +361,14 @@
       </div>
     </div>
 
+    <!-- Gamification -->
+    <div class="gam-row" id="gam-row">
+      <div class="gam-item">🔥 Streak <strong id="gam-streak">-</strong> giorni</div>
+      <div class="gam-item">⭐ <strong id="gam-xp">-</strong> XP</div>
+      <div class="gam-item">✅ <strong id="gam-tasks">-</strong> task completati</div>
+      <div class="gam-achievement" id="gam-next" style="display:none"></div>
+    </div>
+
     <!-- Stats -->
     <div class="stats-row" id="stats-row">
       <div class="stat-card"><div class="num" id="stat-ob-attivi">-</div><div class="lbl">Obiettivi attivi</div></div>
@@ -374,16 +402,32 @@
   // ==========================================
   async function caricaObiettivi() {
     try {
-      const [obRes, oggiRes, statRes] = await Promise.all([
+      const [obRes, oggiRes, statRes, gamRes] = await Promise.all([
         fetch('/api/obiettivi').then(r => r.json()),
         fetch('/api/obiettivi/oggi').then(r => r.json()),
         fetch('/api/obiettivi/statistiche').then(r => r.json()),
+        fetch('/api/gamification').then(r => r.json()),
       ]);
       renderOggi(oggiRes);
       renderStats(statRes);
+      renderGamification(gamRes);
       renderObiettivi(obRes.obiettivi || []);
     } catch (e) {
       console.error('Errore caricamento obiettivi', e);
+    }
+  }
+
+  function renderGamification(data) {
+    document.getElementById('gam-streak').textContent = data.streak_giorni ?? 0;
+    document.getElementById('gam-xp').textContent = data.punteggio_totale ?? 0;
+    document.getElementById('gam-tasks').textContent = data.task_totali_completati ?? 0;
+    const nextEl = document.getElementById('gam-next');
+    if (data.prossimo_achievement) {
+      const p = data.prossimo_achievement;
+      nextEl.textContent = `Prossimo: ${p.titolo} (mancano ${p.mancano})`;
+      nextEl.style.display = '';
+    } else {
+      nextEl.style.display = 'none';
     }
   }
 

@@ -7,12 +7,38 @@ from config import Config
 
 OBIETTIVI_PATH = os.path.join(Config.DATA_DIR, "obiettivi.json")
 
+ACHIEVEMENTS = [
+    {"id": "prima_vittoria", "titolo": "Prima vittoria", "descrizione": "Hai completato il tuo primo task.", "soglia": 1, "tipo": "task_totali"},
+    {"id": "momentum", "titolo": "Momentum", "descrizione": "5 task completati.", "soglia": 5, "tipo": "task_totali"},
+    {"id": "costruttore", "titolo": "Costruttore", "descrizione": "10 task completati.", "soglia": 10, "tipo": "task_totali"},
+    {"id": "macchina", "titolo": "Macchina", "descrizione": "25 task completati.", "soglia": 25, "tipo": "task_totali"},
+    {"id": "streak_3", "titolo": "Fuoco!", "descrizione": "3 giorni di fila con almeno un task.", "soglia": 3, "tipo": "streak"},
+    {"id": "streak_7", "titolo": "Settimana perfetta", "descrizione": "7 giorni di fila.", "soglia": 7, "tipo": "streak"},
+    {"id": "streak_30", "titolo": "Mese di ferro", "descrizione": "30 giorni di fila.", "soglia": 30, "tipo": "streak"},
+    {"id": "xp_100", "titolo": "Primo centinaio", "descrizione": "100 XP guadagnati.", "soglia": 100, "tipo": "xp"},
+    {"id": "xp_500", "titolo": "500 XP", "descrizione": "500 XP guadagnati.", "soglia": 500, "tipo": "xp"},
+    {"id": "xp_1000", "titolo": "Mille punti", "descrizione": "1000 XP guadagnati.", "soglia": 1000, "tipo": "xp"},
+]
+
 
 def _carica() -> dict:
     if not os.path.exists(OBIETTIVI_PATH):
-        return {"obiettivi": []}
-    with open(OBIETTIVI_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        return {"obiettivi": [], "gamification": _gamification_vuota()}
+    data = json.load(open(OBIETTIVI_PATH, encoding="utf-8"))
+    if "gamification" not in data:
+        data["gamification"] = _gamification_vuota()
+    return data
+
+
+def _gamification_vuota() -> dict:
+    return {
+        "punteggio_totale": 0,
+        "streak_giorni": 0,
+        "ultimo_completamento": None,
+        "task_totali_completati": 0,
+        "achievements": [],
+        "ultimo_achievement": None,
+    }
 
 
 def _salva(data: dict):
@@ -88,19 +114,81 @@ def aggiungi_task(
     return {"errore": f"Obiettivo '{obiettivo_id}' non trovato"}
 
 
+def _aggiorna_gamification(data: dict, priorita_task: str) -> dict:
+    """Aggiorna punteggio, streak e achievement dopo un completamento."""
+    g = data["gamification"]
+    oggi = date.today().isoformat()
+
+    # Punteggio base
+    xp_guadagnati = 10
+    if priorita_task == "alta":
+        xp_guadagnati += 20
+    elif priorita_task == "media":
+        xp_guadagnati += 5
+
+    # Streak
+    ultimo = g.get("ultimo_completamento")
+    if ultimo:
+        giorni_passati = (date.today() - date.fromisoformat(ultimo[:10])).days
+        if giorni_passati == 0:
+            pass  # già completato oggi, streak invariato
+        elif giorni_passati == 1:
+            g["streak_giorni"] += 1
+            xp_guadagnati += 5  # bonus streak
+        else:
+            g["streak_giorni"] = 1  # streak rotto, riparte
+    else:
+        g["streak_giorni"] = 1
+
+    g["ultimo_completamento"] = datetime.now().isoformat()
+    g["punteggio_totale"] += xp_guadagnati
+    g["task_totali_completati"] = g.get("task_totali_completati", 0) + 1
+
+    # Achievement check
+    nuovi_achievement = []
+    achievement_sbloccati = {a["id"] for a in g.get("achievements", [])}
+    for ach in ACHIEVEMENTS:
+        if ach["id"] in achievement_sbloccati:
+            continue
+        sbloccato = False
+        if ach["tipo"] == "task_totali" and g["task_totali_completati"] >= ach["soglia"]:
+            sbloccato = True
+        elif ach["tipo"] == "streak" and g["streak_giorni"] >= ach["soglia"]:
+            sbloccato = True
+        elif ach["tipo"] == "xp" and g["punteggio_totale"] >= ach["soglia"]:
+            sbloccato = True
+        if sbloccato:
+            entry = {**ach, "sbloccato": datetime.now().isoformat()}
+            g["achievements"].append(entry)
+            g["ultimo_achievement"] = entry
+            nuovi_achievement.append(ach["titolo"])
+
+    return {
+        "xp_guadagnati": xp_guadagnati,
+        "punteggio_totale": g["punteggio_totale"],
+        "streak_giorni": g["streak_giorni"],
+        "nuovi_achievement": nuovi_achievement,
+    }
+
+
 def completa_task(task_id: str) -> dict:
-    """Segna un task come completato."""
+    """Segna un task come completato e aggiorna il sistema di ricompensa."""
     data = _carica()
     for ob in data["obiettivi"]:
         for task in ob["task"]:
             if task["id"] == task_id:
                 task["stato"] = "completato"
                 task["completato"] = datetime.now().isoformat()
-                # Se tutti i task sono completati, completa l'obiettivo
                 if all(t["stato"] == "completato" for t in ob["task"]):
                     ob["stato"] = "completato"
+                gamification = _aggiorna_gamification(data, task.get("priorita", "media"))
                 _salva(data)
-                return {"successo": True, "task_id": task_id, "obiettivo": ob["titolo"]}
+                return {
+                    "successo": True,
+                    "task_id": task_id,
+                    "obiettivo": ob["titolo"],
+                    **gamification,
+                }
     return {"errore": f"Task '{task_id}' non trovato"}
 
 
@@ -239,6 +327,43 @@ def priorita_oggi() -> dict:
     # Rinomina task_periodo in task_oggi per compatibilità
     r["task_oggi"] = r.pop("task_periodo", [])
     return r
+
+
+def stato_gamification() -> dict:
+    """Ritorna punteggio, streak, achievement e statistiche gamification."""
+    data = _carica()
+    g = data.get("gamification", _gamification_vuota())
+    return {
+        "punteggio_totale": g.get("punteggio_totale", 0),
+        "streak_giorni": g.get("streak_giorni", 0),
+        "task_totali_completati": g.get("task_totali_completati", 0),
+        "ultimo_completamento": g.get("ultimo_completamento"),
+        "achievements": g.get("achievements", []),
+        "ultimo_achievement": g.get("ultimo_achievement"),
+        "prossimo_achievement": _prossimo_achievement(g),
+    }
+
+
+def _prossimo_achievement(g: dict) -> dict | None:
+    """Trova il prossimo achievement più vicino da sbloccare."""
+    sbloccati = {a["id"] for a in g.get("achievements", [])}
+    candidati = []
+    for ach in ACHIEVEMENTS:
+        if ach["id"] in sbloccati:
+            continue
+        if ach["tipo"] == "task_totali":
+            mancano = ach["soglia"] - g.get("task_totali_completati", 0)
+        elif ach["tipo"] == "streak":
+            mancano = ach["soglia"] - g.get("streak_giorni", 0)
+        elif ach["tipo"] == "xp":
+            mancano = ach["soglia"] - g.get("punteggio_totale", 0)
+        else:
+            continue
+        if mancano > 0:
+            candidati.append({**ach, "mancano": mancano})
+    if not candidati:
+        return None
+    return min(candidati, key=lambda x: x["mancano"])
 
 
 def statistiche_obiettivi() -> dict:
