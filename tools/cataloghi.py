@@ -32,7 +32,7 @@ def _max_steps_for_model(model_name: str, requested_max_steps: int) -> int:
     """Limita i passi per contenere i costi sui modelli piu economici."""
     model_lower = model_name.lower()
     if "haiku" in model_lower:
-        return min(requested_max_steps, 12)
+        return min(requested_max_steps, 8)
     if "4-0" in model_lower or "sonnet-4" in model_lower:
         return min(requested_max_steps, 18)
     return requested_max_steps
@@ -59,7 +59,8 @@ async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
             llm_kwargs["model_kwargs"] = {"thinking": {"type": "disabled"}}
 
         llm = ChatAnthropic(**llm_kwargs)
-        agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=profile))
+        browser = Browser(browser_profile=profile)
+        agent = Agent(task=task, llm=llm, browser=browser)
 
         try:
             history = await agent.run(max_steps=model_steps)
@@ -77,6 +78,11 @@ async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
         except Exception as e:
             ultimo_errore = str(e)
             tentativi.append({"modello": model_name, "max_steps": model_steps, "errore": str(e)})
+        finally:
+            try:
+                await browser.close()
+            except Exception:
+                pass
 
     return {
         "successo": False,

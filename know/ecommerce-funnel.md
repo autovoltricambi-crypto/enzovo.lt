@@ -233,3 +233,52 @@ Acquisto 3+
 - [ ] Cross-sell nel carrello e post-acquisto
 - [ ] Referral program attivo
 - [ ] KPI misurati per ogni stage del funnel
+
+---
+
+## CRO e Psicologia della Vendita sul Web
+
+### I 6 principi di Cialdini applicati al sito
+
+#### 1. Reciprocita
+- Offri una guida gratuita, checklist manutenzione o verifica compatibilita prima di chiedere l'acquisto.
+
+#### 2. Impegno
+- Usa micro-conversioni: `Verifica compatibilita`, `Salva nei preferiti`, `Aggiungi al carrello` prima del checkout.
+
+#### 3. Riprova sociale
+- Stelle, numero recensioni, `X clienti l'hanno acquistato`, prodotti piu venduti.
+
+#### 4. Autorita
+- Badge marchi, certificazioni, loghi partner, citazioni media, competenza tecnica.
+
+#### 5. Simpatia
+- Tono umano, foto reali, storytelling concreto, supporto chiaro e non burocratico.
+
+#### 6. Scarsita / Urgenza
+- `Ultimi 3 pezzi`, `Prezzo valido fino a domenica`, countdown solo se reale.
+
+### Struttura della pagina prodotto che converte
+1. Hero con immagine, titolo, prezzo, CTA above-the-fold.
+2. Rating e numero recensioni vicino al titolo.
+3. 3-4 benefici chiave in formato corto con icone o bullet.
+4. Compatibilita e dettagli tecnici piu in basso per chi vuole approfondire.
+5. Cross-sell / upsell (`Spesso acquistato insieme`).
+6. FAQ per abbattere obiezioni.
+7. CTA ripetuta in basso.
+
+### Ridurre l'attrito all'acquisto
+- Meno click possibile verso checkout.
+- Prezzo finale con IVA visibile subito.
+- Metodi pagamento e badge sicurezza visibili vicino alla CTA.
+- Policy di reso chiara vicino al bottone.
+- Checkout guest dove possibile.
+
+### Layout e gerarchia visiva
+- Prezzo e CTA nella colonna visibile sopra la piega.
+- Recensioni vicino al titolo e non nascoste in basso.
+- CTA primaria grande, ad alto contrasto, con testo specifico.
+- Spazio bianco usato per isolare CTA, prezzo e benefici chiave.
+
+### Regola pratica
+La pagina non deve solo informare: deve ridurre dubbio, aumentare fiducia e facilitare il click successivo.

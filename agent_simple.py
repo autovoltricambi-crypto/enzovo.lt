@@ -77,7 +77,12 @@ TOOLS = [
     # --- WordPress / WooCommerce ---
     {
         "name": "crea_prodotto",
-        "description": "Crea un nuovo prodotto WooCommerce nel sito.",
+        "description": (
+            "Crea un nuovo prodotto WooCommerce nel sito. "
+            "Quando prepari nome e descrizione, scrivi copy orientato alla conversione: "
+            "hook iniziale, benefici chiari, compatibilita, rassicurazioni e CTA implicita. "
+            "Evita muri di testo e frasi vaghe."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -194,12 +199,31 @@ TOOLS = [
     },
     {
         "name": "crea_pagina_html",
-        "description": "Crea una nuova pagina HTML nel sito WordPress.",
+        "description": (
+            "Crea una nuova pagina HTML premium nel sito WordPress. "
+            "Il sistema applica automaticamente il design system AutoVolt (class=av). "
+            "SCRIVI HTML RICCO e professionale, NON basico. Usa HTML semantico, mobile-first, DOM leggero, contrasto alto, copy chiaro e struttura pensata per conversione. Usa: "
+            "<div class='av-hero'> per hero section con h1+p introduttivo, "
+            "<div class='av-card'> per card, "
+            "<div class='av-grid'> per layout a griglia di card, "
+            "<a class='av-cta'> per pulsanti CTA rossi, "
+            "<span class='av-badge'> per badge/etichette, "
+            "<ul class='av-checklist'> per liste con check, "
+            "<div class='av-info'> per box informativo blu, "
+            "<div class='av-warn'> per box avviso giallo, "
+            "<div class='av-stats'><div class='av-stat'><span class='av-stat-num'>42</span><span class='av-stat-label'>Prodotti</span></div></div> per statistiche, "
+            "<hr class='av-sep'> per separatori eleganti, "
+            "<blockquote> per callout evidenziati. "
+            "Usa <table> con <th> per tabelle (stile zebra automatico). "
+            "Usa <dl><dt><dd> per FAQ (stile card automatico). "
+            "IMPORTANTE: scrivi almeno 3-4 sezioni con h2, contenuto ricco, "
+            "almeno 1 CTA, almeno 1 card o grid. MAI pagine con solo testo piatto. La pagina deve essere comprensibile in pochi secondi e non dipendere da librerie JS pesanti."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "titolo": {"type": "string"},
-                "contenuto_html": {"type": "string"},
+                "contenuto_html": {"type": "string", "description": "HTML ricco e premium con classi av-*. Min 3 sezioni h2."},
                 "slug": {"type": "string"},
                 "stato": {"type": "string", "enum": ["draft", "publish"]},
             },
@@ -208,12 +232,17 @@ TOOLS = [
     },
     {
         "name": "scrivi_pagina_html",
-        "description": "Modifica il contenuto HTML di una pagina WordPress esistente.",
+        "description": (
+            "Modifica il contenuto HTML di una pagina WordPress esistente. "
+            "Stesse regole di crea_pagina_html: scrivi HTML premium con classi av-* "
+            "(av-hero, av-card, av-grid, av-cta, av-badge, av-checklist, av-info, av-stats, av-sep). "
+            "Il design system viene applicato automaticamente. Mantieni la pagina semanticamente pulita, leggibile, veloce e orientata alla conversione."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "page_id": {"type": "integer"},
-                "contenuto_html": {"type": "string"},
+                "contenuto_html": {"type": "string", "description": "HTML ricco e premium con classi av-*."},
                 "titolo": {"type": "string"},
                 "stato": {"type": "string", "enum": ["draft", "publish"]},
             },
@@ -538,7 +567,8 @@ TOOLS = [
         "description": (
             "Modifica completa di un prodotto WooCommerce: nome, prezzo, descrizione, "
             "descrizione_breve, stock, SKU, meta_data, immagini. "
-            "Usa questo invece di modifica_prodotto quando devi toccare meta_data o immagini."
+            "Usa questo invece di modifica_prodotto quando devi toccare meta_data o immagini. "
+            "Quando riscrivi descrizioni, usa copy persuasivo: problema, soluzione, benefici, compatibilita, fiducia e CTA."
         ),
         "input_schema": {
             "type": "object",
@@ -563,13 +593,18 @@ TOOLS = [
         "description": (
             "Crea un post blog WordPress (NON una pagina) per SEO. "
             "Usa per articoli su ricambi, guide, contenuti per posizionamento locale. "
-            "Supporta categorie blog, tag, excerpt e immagine di copertina."
+            "Supporta categorie blog, tag, excerpt e immagine di copertina. "
+            "SCRIVI HTML PREMIUM: usa h2 per sezioni, tabelle per confronti, "
+            "dl/dt/dd per FAQ, blockquote per callout importanti, "
+            "div.av-card per box informativi, ul.av-checklist per checklist, "
+            "div.av-info per note, a.av-cta per CTA. "
+            "Minimo 4 sezioni h2, contenuto ricco, almeno 1 tabella o card grid. Il testo deve essere scansionabile, chiaro, SEO-friendly ma anche persuasivo."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "titolo": {"type": "string"},
-                "contenuto_html": {"type": "string", "description": "Contenuto in HTML"},
+                "contenuto_html": {"type": "string", "description": "HTML premium con sezioni h2, tabelle, FAQ, card. Min 800 parole."},
                 "slug": {"type": "string"},
                 "stato": {"type": "string", "enum": ["draft", "publish"]},
                 "categoria": {"type": "string", "description": "Nome categoria blog"},
@@ -1279,7 +1314,15 @@ tecnici, creare contenuti, fare ricerche approfondite, automatizzare processi e 
 
 ## Identità e modo di operare
 
-Sei un esperto informatico con mentalità da problem solver. Il tuo approccio:
+Sei un esperto informatico full-stack con competenze avanzate di HTML, CSS, JavaScript, \
+web performance, Core Web Vitals, UX persuasiva, CRO, copywriting web e teoria dei colori. \
+Quando crei pagine o articoli HTML per WordPress, scrivi SEMPRE codice premium: \
+layout moderni con hero section, card grid, CTA, tabelle stilizzate, FAQ eleganti. \
+MAI HTML basico con solo h1+p. Usa le classi del design system (av-hero, av-card, av-grid, \
+av-cta, av-badge, av-checklist, av-info, av-warn, av-stats, av-sep, blockquote per callout). \
+Ogni pagina deve essere comprensibile in 3-5 secondi, semanticamente pulita, mobile-first, \
+ad alto contrasto, con palette coerente, CTA specifiche, gerarchia visiva chiara e attenzione a LCP, INP e CLS. \
+Il tuo approccio:
 
 - **Hyper focus** — quando ricevi un task ti concentri completamente su quello, senza \
   distrarti. Non ti fermi finché non è risolto.

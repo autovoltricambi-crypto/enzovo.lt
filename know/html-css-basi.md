@@ -347,3 +347,123 @@ img, video {
 - [ ] Font leggibili su mobile (min 16px)
 - [ ] Bottoni/link toccabili (min 44×44px)
 - [ ] Testato su 320px (mobile piccolo), 768px (tablet), 1280px (desktop)
+
+---
+
+## Teoria dei Colori per Web Design
+
+### Cerchio Cromatico
+- Colori primari: rosso, blu, giallo.
+- Colori secondari: arancione, verde, viola.
+- Colori complementari: opposti nel cerchio cromatico, utili per CTA e contrasti forti.
+- Colori analoghi: vicini nel cerchio cromatico, utili per interfacce armoniose.
+
+### Temperatura, Saturazione, Luminosita
+- Colori caldi (`rosso`, `arancio`, `giallo`) = energia, urgenza, attenzione.
+- Colori freddi (`blu`, `verde`) = fiducia, calma, controllo.
+- Saturazione alta = effetto piu aggressivo e promozionale.
+- Luminosita alta = superficie leggera, ariosa, piu facile da leggere.
+
+### Regole pratiche
+1. Usa i colori caldi per CTA, badge offerta e urgenza.
+2. Usa neutri e colori freddi per superfici e testo lungo.
+3. Non affidarti solo al colore: aggiungi icone, testo e stato esplicito.
+
+### 60-30-10
+- 60% colore dominante: sfondi e grandi superfici.
+- 30% colore secondario: card, pannelli, separatori.
+- 10% colore accento: CTA, link, badge, elementi d'azione.
+
+### Scala colore 100-900
+```css
+:root {
+  --red-100: #fee2e2;
+  --red-200: #fecaca;
+  --red-300: #fca5a5;
+  --red-400: #f87171;
+  --red-500: #ef4444;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --red-800: #991b1b;
+  --red-900: #7f1d1d;
+}
+```
+
+### OKLCH in CSS moderno
+`oklch()` permette variazioni di colore piu prevedibili di HSL/HEX, utile per creare palette coerenti.
+
+```css
+:root {
+  --brand-500: oklch(0.62 0.21 27);
+  --brand-700: oklch(0.50 0.18 27);
+  --surface-50: oklch(0.98 0.01 250);
+  --ink-900: oklch(0.20 0.03 260);
+}
+```
+
+### Palette consigliata per automotive
+Per il settore ricambi auto funziona bene una base scura tecnica con accento rosso o arancione: trasmette affidabilita meccanica, energia e urgenza commerciale.
+
+### Palette Auto Volt
+| Ruolo | Hex | RGB |
+|------|-----|-----|
+| Ink 950 | `#0B1220` | `rgb(11, 18, 32)` |
+| Slate 900 | `#111827` | `rgb(17, 24, 39)` |
+| Slate 700 | `#334155` | `rgb(51, 65, 85)` |
+| Steel 500 | `#64748B` | `rgb(100, 116, 139)` |
+| Mist 200 | `#E2E8F0` | `rgb(226, 232, 240)` |
+| Surface 50 | `#F8FAFC` | `rgb(248, 250, 252)` |
+| Brand 600 | `#DC2626` | `rgb(220, 38, 38)` |
+| Brand 700 | `#B91C1C` | `rgb(185, 28, 28)` |
+| Accent 500 | `#F59E0B` | `rgb(245, 158, 11)` |
+| Success 600 | `#16A34A` | `rgb(22, 163, 74)` |
+
+### Variabili CSS pronte
+```css
+:root {
+  --av-ink-950: #0b1220;
+  --av-slate-900: #111827;
+  --av-slate-700: #334155;
+  --av-steel-500: #64748b;
+  --av-mist-200: #e2e8f0;
+  --av-surface-50: #f8fafc;
+  --av-brand-600: #dc2626;
+  --av-brand-700: #b91c1c;
+  --av-accent-500: #f59e0b;
+  --av-success-600: #16a34a;
+}
+```
+
+### Applicazione pratica
+```css
+.site-header {
+  background: var(--av-ink-950);
+  color: #fff;
+}
+
+.product-card {
+  background: #fff;
+  border: 1px solid var(--av-mist-200);
+  color: var(--av-slate-900);
+}
+
+.button-primary {
+  background: var(--av-brand-600);
+  color: #fff;
+}
+
+.button-primary:hover {
+  background: var(--av-brand-700);
+}
+
+.badge-sale {
+  background: var(--av-accent-500);
+  color: var(--av-ink-950);
+}
+```
+
+### Contrasto e accessibilita
+- Testo normale: contrasto minimo `4.5:1`.
+- Testo grande: contrasto minimo `3:1`.
+- Non usare il colore come unico segnale per errore, successo o disponibilita.
+- Verifica sempre con Lighthouse, WebAIM Contrast Checker o strumenti DevTools.

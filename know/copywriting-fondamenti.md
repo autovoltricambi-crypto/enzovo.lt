@@ -194,3 +194,113 @@ Beneficio diretto: "Ricambi BMW compatibili → consegnati domani"
 - [ ] Bullet point per liste di benefici
 - [ ] Urgency o scarcity (se reale)
 - [ ] Copy testato (A/B su headline e CTA)
+
+---
+
+## Come leggiamo il web
+
+- Le persone non leggono parola per parola: scansionano.
+- Pattern comuni: `F-pattern` su pagine di testo e `Z-pattern` su landing semplici.
+- Regola dei 3 secondi: sopra la piega l'utente deve capire cosa vendi, per chi e quale azione fare.
+
+### Above the fold
+Metti sempre:
+1. headline orientata al beneficio
+2. sottotitolo che elimina l'obiezione principale
+3. CTA primaria
+4. almeno un trust signal vicino alla CTA
+
+## Headline efficaci
+
+### Formula pratica
+`Risultato + Tempo + Senza obiezione`
+
+Esempi per ricambi auto:
+- `Trova il ricambio compatibile in 2 minuti senza errori di acquisto`
+- `Ricevi il filtro giusto entro domani senza passare dal concessionario`
+- `Tagliando completo per Fiat Punto in pochi click senza impazzire tra codici`
+
+### 4U
+- Urgente
+- Unico
+- Utile
+- Ultra-specifico
+
+Una headline forte idealmente copre almeno 2 delle 4U.
+
+## Body Copy
+
+### Regole base
+1. Frasi corte: meglio sotto 20 parole.
+2. Paragrafi brevi: massimo 3-4 righe.
+3. Gerarchia visiva: `H1 > H2 > H3 > testo > note`.
+4. Bullet point sui benefici, non sulle sole caratteristiche.
+
+### FAB
+- Feature: cosa ha il prodotto.
+- Advantage: perche e migliore o piu comodo.
+- Benefit: cosa cambia per il cliente.
+
+```text
+Feature: kit distribuzione Dayco con cinghia e tenditore.
+Advantage: compatibilita precisa e componenti coordinati.
+Benefit: meno rischio di guasti e montaggio piu rapido.
+```
+
+## Call To Action
+
+### Regole pratiche
+- Usa verbi specifici: `Ordina ora`, `Verifica compatibilita`, `Aggiungi al carrello`.
+- CTA primaria = azione principale.
+- CTA secondaria = azione meno impegnativa (`Chiedi assistenza`, `Scarica guida`, `Contattaci`).
+- Sotto il bottone aggiungi microcopy per ridurre ansia.
+
+```html
+<a class="cta">Aggiungi al carrello</a>
+<p class="microcopy">Spedizione rapida e reso semplice entro 30 giorni.</p>
+```
+
+## Descrizioni prodotto
+
+### Struttura che vende
+1. Hook
+2. Problema
+3. Soluzione
+4. Prove sociali o rassicurazioni
+5. CTA
+
+### Esempio - Kit distribuzione Dayco per Fiat Punto
+```html
+<h2>Kit distribuzione Dayco per Fiat Punto: la scelta sicura per evitare guasti costosi</h2>
+<p>Se senti rumori anomali o stai arrivando al chilometraggio del tagliando, rimandare la distribuzione e un rischio serio. Questo kit Dayco per Fiat Punto ti permette di sostituire i componenti principali con un set compatibile e affidabile.</p>
+<ul>
+    <li>Compatibilita chiara per modelli Fiat Punto selezionati</li>
+    <li>Qualita Dayco riconosciuta nel settore aftermarket</li>
+    <li>Riduce il rischio di rottura cinghia e danni al motore</li>
+    <li>Ideale per tagliando completo e manutenzione preventiva</li>
+</ul>
+<p><strong>Ordina il kit giusto oggi</strong> e ricevi supporto sulla compatibilita prima dell'acquisto.</p>
+```
+
+### SEO + vendita insieme
+- Inserisci keyword nel titolo, H2 e prime righe.
+- Non sacrificare chiarezza e conversione per ripetere parole chiave.
+- Rispondi sempre prima alla domanda commerciale, poi a quella SEO.
+
+## Error messages e microcopy
+
+### Regole
+1. Spiega cosa e successo.
+2. Spiega come risolvere.
+3. Mantieni tono chiaro, non colpevolizzante.
+
+Esempi:
+- Sbagliato: `Errore input`.
+- Corretto: `Inserisci una targa valida, ad esempio AB123CD.`
+
+- Sbagliato: `Pagamento fallito`.
+- Corretto: `Il pagamento non e andato a buon fine. Riprova con un'altra carta o contattaci se vuoi supporto immediato.`
+
+Placeholder e tooltip devono aiutare davvero:
+- Placeholder: `Es. 51787543`
+- Tooltip: `Trovi il codice OE sul vecchio ricambio o nel libretto service.`

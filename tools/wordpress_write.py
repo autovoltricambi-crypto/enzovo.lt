@@ -80,6 +80,110 @@ DEFAULT_BLOG_CATEGORY_RULES = {
 }
 
 
+_AV_DESIGN_CSS = """<style>
+/* === AutoVolt Premium Design System v2 === */
+.av{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;background:#fff;line-height:1.75;font-size:1.05rem;max-width:820px;margin:0 auto;padding:2.5rem 2rem}
+/* Typography */
+.av h1{font-size:2.25rem;font-weight:800;color:#0f172a;line-height:1.2;margin:0 0 1.25rem;letter-spacing:-.02em}
+.av h2{font-size:1.5rem;font-weight:700;color:#1e293b;margin:2.5rem 0 1rem;padding-bottom:.5rem;border-bottom:3px solid #dc2626}
+.av h3{font-size:1.2rem;font-weight:600;color:#334155;margin:2rem 0 .75rem}
+.av h4{font-size:1.05rem;font-weight:600;color:#475569;margin:1.5rem 0 .5rem}
+.av p{margin:0 0 1.25rem}
+.av strong{color:#0f172a}
+.av em{color:#64748b}
+/* Links */
+.av a{color:#dc2626;text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s,color .2s}
+.av a:hover{border-bottom-color:#dc2626;color:#991b1b}
+/* Lists */
+.av ul,.av ol{margin:0 0 1.5rem 1.25rem}
+.av li{margin-bottom:.5rem}
+.av ul li::marker{color:#dc2626;font-weight:700}
+/* Tables — zebra + hover */
+.av table{width:100%;border-collapse:separate;border-spacing:0;margin:1.5rem 0;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.av th{background:#1e293b;color:#fff;font-weight:600;text-align:left;padding:12px 16px;font-size:.92rem;text-transform:uppercase;letter-spacing:.04em}
+.av td{padding:11px 16px;border-bottom:1px solid #e2e8f0}
+.av tr:nth-child(even) td{background:#f8fafc}
+.av tr:last-child td{border-bottom:none}
+.av tr:hover td{background:#f1f5f9}
+/* FAQ (dl/dt/dd) — card-style */
+.av dl{margin:1.5rem 0}
+.av dt{font-weight:700;color:#1e293b;margin-top:1rem;padding:1rem 1.25rem .5rem;background:#f8fafc;border-left:4px solid #dc2626;border-radius:0 8px 0 0}
+.av dd{margin:0 0 .75rem;padding:.5rem 1.25rem 1rem;background:#f8fafc;border-left:4px solid #dc2626;border-radius:0 0 8px 0}
+/* Blockquote — callout */
+.av blockquote{background:linear-gradient(135deg,#fef2f2,#fff1f2);border-left:4px solid #dc2626;padding:1.25rem 1.5rem;margin:1.5rem 0;border-radius:0 10px 10px 0;font-style:normal}
+.av blockquote p:last-child{margin-bottom:0}
+/* Images */
+.av img{max-width:100%;height:auto;border-radius:12px;margin:1.5rem 0;box-shadow:0 4px 15px rgba(0,0,0,.08)}
+/* === Utility classes (opzionali, l'agente puo usarli) === */
+/* Hero */
+.av .av-hero{text-align:center;padding:2.5rem 0 2rem;margin-bottom:2rem;border-bottom:1px solid #e2e8f0}
+.av .av-hero h1{font-size:2.6rem;margin-bottom:.75rem}
+.av .av-hero p{font-size:1.15rem;color:#64748b;max-width:600px;margin:0 auto}
+/* Card */
+.av .av-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem;margin:1rem 0;transition:box-shadow .2s}
+.av .av-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.av .av-card h3{margin-top:0;color:#1e293b}
+/* Grid */
+.av .av-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.25rem;margin:1.5rem 0}
+/* CTA Button */
+.av .av-cta{display:inline-block;background:#dc2626;color:#fff!important;padding:14px 32px;border-radius:8px;font-weight:700;text-decoration:none!important;border:none;border-bottom:none!important;font-size:1rem;transition:background .2s,transform .1s;cursor:pointer}
+.av .av-cta:hover{background:#b91c1c;transform:translateY(-1px);color:#fff!important}
+/* Badge */
+.av .av-badge{display:inline-block;background:#fef2f2;color:#dc2626;padding:4px 12px;border-radius:20px;font-size:.8rem;font-weight:600}
+/* Checklist */
+.av .av-checklist{list-style:none;margin-left:0;padding-left:0}
+.av .av-checklist li{padding:.5rem 0 .5rem 2rem;position:relative}
+.av .av-checklist li::before{content:'✓';position:absolute;left:0;color:#dc2626;font-weight:700;font-size:1.1rem}
+/* Separator */
+.av .av-sep{border:none;height:2px;background:linear-gradient(90deg,transparent,#e2e8f0,transparent);margin:2.5rem 0}
+/* Info box */
+.av .av-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:1rem 1.25rem;margin:1.5rem 0;color:#1e40af}
+.av .av-info strong{color:#1e3a8a}
+/* Warning box */
+.av .av-warn{background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:1rem 1.25rem;margin:1.5rem 0;color:#92400e}
+/* Stats row */
+.av .av-stats{display:flex;gap:1rem;flex-wrap:wrap;margin:1.5rem 0}
+.av .av-stat{flex:1;min-width:120px;text-align:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem .75rem}
+.av .av-stat .av-stat-num{display:block;font-size:1.75rem;font-weight:800;color:#dc2626}
+.av .av-stat .av-stat-label{font-size:.8rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+/* Responsive */
+@media(max-width:640px){
+.av{padding:1.25rem 1rem;font-size:1rem}
+.av h1{font-size:1.75rem}
+.av h2{font-size:1.3rem}
+.av .av-hero h1{font-size:2rem}
+.av table{font-size:.9rem}
+.av th,.av td{padding:8px 10px}
+.av .av-grid{grid-template-columns:1fr}
+.av .av-stats{flex-direction:column}
+}
+</style>"""
+
+
+def _ensure_accessible_html_contrast(contenuto_html: str) -> str:
+    """Wrappa il contenuto HTML nel design system premium AutoVolt."""
+    if not contenuto_html or not contenuto_html.strip():
+        return contenuto_html
+
+    # Evita doppio wrapping
+    if 'class="av"' in contenuto_html or "class='av'" in contenuto_html:
+        return contenuto_html
+
+    # Compatibilità: rimuovi vecchio wrapper se presente
+    contenuto_html = contenuto_html.replace(
+        '<div class="autovolt-readable-content">', ""
+    ).replace("</div><!-- /autovolt-readable-content -->", "")
+    if "autovolt-readable-content" in contenuto_html:
+        contenuto_html = re.sub(
+            r'<div class="autovolt-readable-content">(.*?)</div>\s*$',
+            r"\1",
+            contenuto_html,
+            flags=re.DOTALL,
+        )
+
+    return f'{_AV_DESIGN_CSS}\n<div class="av">\n{contenuto_html}\n</div>'
+
+
 # ==========================================
 # PRODOTTI WOOCOMMERCE
 # ==========================================
@@ -223,6 +327,7 @@ async def crea_pagina_html(
 ) -> dict:
     """Crea una nuova pagina WordPress con contenuto HTML."""
     client = get_wp_client()
+    contenuto_html = _ensure_accessible_html_contrast(contenuto_html)
 
     payload = {
         "title": titolo,
@@ -253,6 +358,7 @@ async def scrivi_pagina_html(
 ) -> dict:
     """Modifica il contenuto HTML di una pagina WordPress esistente."""
     client = get_wp_client()
+    contenuto_html = _ensure_accessible_html_contrast(contenuto_html)
 
     payload = {"content": contenuto_html}
     if titolo:
@@ -695,6 +801,7 @@ async def crea_post_blog(
     usando le regole salvate nel contesto sito.
     """
     client = get_wp_client()
+    contenuto_html = _ensure_accessible_html_contrast(contenuto_html)
 
     categoria_assegnata = categoria or _infer_blog_category(
         titolo=titolo,
@@ -763,7 +870,7 @@ async def modifica_post_blog(
     if titolo:
         payload["title"] = titolo
     if contenuto_html:
-        payload["content"] = contenuto_html
+        payload["content"] = _ensure_accessible_html_contrast(contenuto_html)
     if stato:
         payload["status"] = stato
     if excerpt:
