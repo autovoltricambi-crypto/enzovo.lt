@@ -599,7 +599,7 @@ async def esegui_tool(name: str, input_dict: dict) -> dict:
         return await asyncio.wait_for(coro, timeout=60)
     except asyncio.TimeoutError:
         return {"errore": f"Tool '{name}' ha superato il timeout di 60 secondi"}
-    except Exception as e:
+    except BaseException as e:
         return {"errore": f"Errore esecuzione {name}: {str(e)}"}
 
 
@@ -901,7 +901,7 @@ REGOLE ADHD:
                         await progress_callback(f"{stato} {tool_use.name} completato")
                     content = json.dumps(result, ensure_ascii=False)
                     is_error = bool(result.get("errore"))
-                except Exception as e:
+                except BaseException as e:
                     content = json.dumps({"errore": str(e)}, ensure_ascii=False)
                     is_error = True
                     if progress_callback:
