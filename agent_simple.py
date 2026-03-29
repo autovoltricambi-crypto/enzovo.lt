@@ -894,14 +894,23 @@ REGOLE ADHD:
             async def run_tool(tool_use):
                 if progress_callback:
                     await progress_callback(f"▶ {tool_use.name}...")
-                result = await esegui_tool(tool_use.name, tool_use.input)
-                if progress_callback:
-                    stato = "✓" if not result.get("errore") else "✗"
-                    await progress_callback(f"{stato} {tool_use.name} completato")
+                try:
+                    result = await esegui_tool(tool_use.name, tool_use.input)
+                    if progress_callback:
+                        stato = "✓" if not result.get("errore") else "✗"
+                        await progress_callback(f"{stato} {tool_use.name} completato")
+                    content = json.dumps(result, ensure_ascii=False)
+                    is_error = bool(result.get("errore"))
+                except Exception as e:
+                    content = json.dumps({"errore": str(e)}, ensure_ascii=False)
+                    is_error = True
+                    if progress_callback:
+                        await progress_callback(f"✗ {tool_use.name} errore: {e}")
                 return {
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,
-                    "content": json.dumps(result, ensure_ascii=False),
+                    "content": content,
+                    "is_error": is_error,
                 }
 
             tool_results = await asyncio.gather(*[run_tool(t) for t in tool_uses])
