@@ -139,6 +139,8 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
             "Non chiedere conferma all'utente."
         )
 
+    task_parts.append("Dopo il login, prendi uno screenshot della home e dimmi esattamente cosa vedi nella pagina.")
+    task_parts.append("Se ci sono errori, elementi che non riesci a identificare, o qualsiasi problema, spiegami nel dettaglio cosa succede e perche non puoi continuare.")
     task_parts.append(obiettivo)
     task_parts.append("Rispondi in italiano con i dati trovati.")
 
