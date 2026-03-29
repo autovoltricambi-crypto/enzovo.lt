@@ -55,6 +55,14 @@ class Config:
     # Browser-use: False = mostra il browser (utile per debug), True = invisibile
     BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
 
+    # Profilo Chrome reale (opzionale)
+    # Mac:     ~/Library/Application Support/Google/Chrome
+    # Windows: C:\Users\TUO_NOME\AppData\Local\Google\Chrome\User Data
+    # Linux:   ~/.config/google-chrome
+    # Lascia vuoto per usare un browser temporaneo (nessun cookie/sessione)
+    CHROME_USER_DATA_DIR = os.getenv("CHROME_USER_DATA_DIR", "")
+    CHROME_PROFILE = os.getenv("CHROME_PROFILE", "Default")
+
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, "data")
     EXPORTS_DIR = os.path.join(BASE_DIR, "exports")

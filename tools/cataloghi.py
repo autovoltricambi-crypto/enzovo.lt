@@ -83,7 +83,12 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         "Restituisci i risultati come lista JSON con campi: titolo, codice, prezzo."
     )
 
-    agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)))
+    profile = BrowserProfile(
+        headless=Config.BROWSER_HEADLESS,
+        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
+           if Config.CHROME_USER_DATA_DIR else {}),
+    )
+    agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=profile))
 
     try:
         history = await agent.run(max_steps=20)
@@ -138,7 +143,12 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
         api_key=Config.ANTHROPIC_API_KEY,
     )
 
-    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)))
+    profile = BrowserProfile(
+        headless=Config.BROWSER_HEADLESS,
+        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
+           if Config.CHROME_USER_DATA_DIR else {}),
+    )
+    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(browser_profile=profile))
 
     try:
         history = await agent.run(max_steps=30)
@@ -166,10 +176,15 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
         api_key=Config.ANTHROPIC_API_KEY,
     )
 
+    profile = BrowserProfile(
+        headless=Config.BROWSER_HEADLESS,
+        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
+           if Config.CHROME_USER_DATA_DIR else {}),
+    )
     agent = Agent(
         task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
         llm=llm,
-        browser=Browser(browser_profile=BrowserProfile(headless=Config.BROWSER_HEADLESS)),
+        browser=Browser(browser_profile=profile),
     )
 
     try:
