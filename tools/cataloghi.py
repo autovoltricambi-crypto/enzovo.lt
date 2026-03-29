@@ -92,17 +92,21 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
 
     try:
         history = await agent.run(max_steps=20)
-        risultati = history.final_result() or "Nessun risultato trovato."
+        result = history.final_result()
+        if result is None:
+            result = "Nessun risultato trovato."
         return {
             "catalogo": catalogo,
             "query": query,
-            "risultati": risultati,
+            "risultati": str(result),
+            "successo": True,
         }
     except Exception as e:
         return {
             "catalogo": catalogo,
             "query": query,
             "errore": str(e),
+            "successo": False,
         }
 
 
@@ -152,12 +156,20 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
 
     try:
         history = await agent.run(max_steps=30)
+        result = history.final_result()
+        if result is None:
+            result = "Nessun risultato trovato."
         return {
             "portale": info["nome"],
-            "risultato": history.final_result() or "Nessun risultato.",
+            "risultato": str(result),  # Converti a string per sicurezza
+            "successo": True,
         }
     except Exception as e:
-        return {"portale": info["nome"], "errore": str(e)}
+        return {
+            "portale": info["nome"],
+            "errore": str(e),
+            "successo": False,
+        }
 
 
 async def naviga_web(url: str, obiettivo: str) -> dict:
@@ -189,9 +201,20 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
 
     try:
         history = await agent.run(max_steps=25)
-        return {"url": url, "risultato": history.final_result() or "Nessun risultato."}
+        result = history.final_result()
+        if result is None:
+            result = "Nessun risultato trovato."
+        return {
+            "url": url,
+            "risultato": str(result),
+            "successo": True,
+        }
     except Exception as e:
-        return {"url": url, "errore": str(e)}
+        return {
+            "url": url,
+            "errore": str(e),
+            "successo": False,
+        }
 
 
 async def cerca_tutti_cataloghi(query: str) -> dict:
