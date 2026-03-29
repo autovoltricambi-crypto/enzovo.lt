@@ -28,6 +28,16 @@ def _browser_model_chain() -> list[str]:
     return chain
 
 
+def _max_steps_for_model(model_name: str, requested_max_steps: int) -> int:
+    """Limita i passi per contenere i costi sui modelli piu economici."""
+    model_lower = model_name.lower()
+    if "haiku" in model_lower:
+        return min(requested_max_steps, 12)
+    if "4-0" in model_lower or "sonnet-4" in model_lower:
+        return min(requested_max_steps, 18)
+    return requested_max_steps
+
+
 async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
     """Esegue browser-use provando piu modelli in ordine di fallback."""
     from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
@@ -43,6 +53,7 @@ async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
     ultimo_errore = None
 
     for model_name in _browser_model_chain():
+        model_steps = _max_steps_for_model(model_name, max_steps)
         llm_kwargs = {"model": model_name, "api_key": Config.ANTHROPIC_API_KEY}
         if "haiku" not in model_name:
             llm_kwargs["model_kwargs"] = {"thinking": {"type": "disabled"}}
@@ -51,7 +62,7 @@ async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
         agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=profile))
 
         try:
-            history = await agent.run(max_steps=max_steps)
+            history = await agent.run(max_steps=model_steps)
             try:
                 result = history.final_result()
             except Exception:
@@ -59,12 +70,13 @@ async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
             return {
                 "successo": True,
                 "modello_usato": model_name,
+                "max_steps_usati": model_steps,
                 "risultato": result or "Navigazione completata. Nessun risultato finale estratto.",
                 "tentativi": tentativi,
             }
         except Exception as e:
             ultimo_errore = str(e)
-            tentativi.append({"modello": model_name, "errore": str(e)})
+            tentativi.append({"modello": model_name, "max_steps": model_steps, "errore": str(e)})
 
     return {
         "successo": False,

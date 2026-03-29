@@ -1,9 +1,83 @@
 """Operazioni WordPress/WooCommerce via REST API."""
 import asyncio
 import json
+import re
+import unicodedata
 import httpx
 from tools.cataloghi import get_wp_client
-from tools.memoria import salva_prodotto_in_memoria, aggiorna_contesto_sito
+from tools.memoria import salva_prodotto_in_memoria, aggiorna_contesto_sito, leggi_contesto_sito
+
+
+DEFAULT_BLOG_CATEGORY_RULES = {
+    "Guide Ricambi": [
+        "quale",
+        "guida",
+        "compatibile",
+        "compatibil",
+        "codice oe",
+        "codice oem",
+        "ricambio",
+        "filtro",
+        "pastiglie",
+        "batteria",
+        "panda",
+        "500",
+        "clio",
+        "golf",
+    ],
+    "Manutenzione Auto": [
+        "manutenzione",
+        "tagliando",
+        "cambiare",
+        "sostituire",
+        "ogni quanto",
+        "quando cambiare",
+        "olio motore",
+        "filtro aria",
+        "filtro abitacolo",
+        "revisione",
+        "controllare",
+    ],
+    "Problemi e Diagnosi": [
+        "spia",
+        "problema",
+        "diagnosi",
+        "errore",
+        "sintomo",
+        "non parte",
+        "rumore",
+        "vibra",
+        "perde potenza",
+        "fumosita",
+        "accesa",
+        "guasto",
+    ],
+    "Confronti e Recensioni": [
+        "vs",
+        "confronto",
+        "recensione",
+        "migliore",
+        "meglio",
+        "differenza",
+        "mann",
+        "mahle",
+        "ufi",
+        "bosch",
+    ],
+    "News Auto Elettriche": [
+        "elettrica",
+        "elettriche",
+        "bev",
+        "batterie",
+        "ricarica",
+        "colonnina",
+        "plug-in",
+        "plug in",
+        "ibrida",
+        "ev",
+        "mobilita elettrica",
+    ],
+}
 
 
 # ==========================================
@@ -617,12 +691,17 @@ async def crea_post_blog(
     Crea un post blog WordPress via /wp-json/wp/v2/posts.
     Diverso da crea_pagina_html che crea pagine statiche.
 
-    stato: 'draft' o 'publish'
-    categoria: nome categoria blog (verrà creata se non esiste)
-    tags: lista stringhe tag
-    immagine_copertina: URL immagine featured
+    Se categoria non è specificata, l'agente prova ad assegnarla automaticamente
+    usando le regole salvate nel contesto sito.
     """
     client = get_wp_client()
+
+    categoria_assegnata = categoria or _infer_blog_category(
+        titolo=titolo,
+        contenuto_html=contenuto_html,
+        excerpt=excerpt,
+        tags=tags,
+    )
 
     payload = {
         "title": titolo,
@@ -634,13 +713,11 @@ async def crea_post_blog(
     if excerpt:
         payload["excerpt"] = excerpt
 
-    # Gestione categoria blog
-    if categoria:
-        cat_id = await _get_or_create_blog_categoria(client, categoria)
+    if categoria_assegnata:
+        cat_id = await _get_or_create_blog_categoria(client, categoria_assegnata)
         if cat_id:
             payload["categories"] = [cat_id]
 
-    # Gestione tag
     if tags:
         tag_ids = []
         for tag_nome in tags:
@@ -650,7 +727,6 @@ async def crea_post_blog(
         if tag_ids:
             payload["tags"] = tag_ids
 
-    # Immagine di copertina
     if immagine_copertina:
         media_id = await _upload_immagine_da_url(client, immagine_copertina)
         if media_id:
@@ -665,6 +741,8 @@ async def crea_post_blog(
             "titolo": data["title"]["rendered"],
             "url": data["link"],
             "stato": data["status"],
+            "categoria_assegnata": categoria_assegnata,
+            "categoria_automatica": categoria is None and bool(categoria_assegnata),
         }
     return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
 
@@ -675,8 +753,10 @@ async def modifica_post_blog(
     contenuto_html: str | None = None,
     stato: str | None = None,
     excerpt: str | None = None,
+    categoria: str | None = None,
+    tags: list | None = None,
 ) -> dict:
-    """Modifica un post blog esistente."""
+    """Modifica un post blog esistente, con supporto opzionale per categorie e tag."""
     client = get_wp_client()
 
     payload = {}
@@ -688,6 +768,17 @@ async def modifica_post_blog(
         payload["status"] = stato
     if excerpt:
         payload["excerpt"] = excerpt
+    if categoria:
+        cat_id = await _get_or_create_blog_categoria(client, categoria)
+        if cat_id:
+            payload["categories"] = [cat_id]
+    if tags is not None:
+        tag_ids = []
+        for tag_nome in tags:
+            tag_id = await _get_or_create_tag(client, tag_nome)
+            if tag_id:
+                tag_ids.append(tag_id)
+        payload["tags"] = tag_ids
 
     r = await client.post(f"/wp-json/wp/v2/posts/{post_id}", json=payload)
     if r.status_code == 200:
@@ -697,6 +788,7 @@ async def modifica_post_blog(
             "id": data["id"],
             "titolo": data["title"]["rendered"],
             "url": data["link"],
+            "categoria_assegnata": categoria,
         }
     return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
 
@@ -728,6 +820,110 @@ async def lista_post_blog(search: str = None, categoria: str = None, limit: int 
         for p in r.json()
     ]
     return {"totale": len(posts), "posts": posts}
+
+
+async def aggiungi_voce_menu(
+    titolo: str,
+    url: str,
+    menu_location: str | None = "primary",
+    menu_slug: str | None = None,
+    menu_id: int | None = None,
+    parent_id: int = 0,
+    menu_order: int | None = None,
+    object_id: int | None = None,
+    object_type: str = "page",
+    item_type: str | None = None,
+) -> dict:
+    """Aggiunge una voce a un menu WordPress, evitando duplicati nello stesso menu."""
+    client = get_wp_client()
+
+    resolved_menu_id = await _resolve_menu_id(
+        client,
+        menu_id=menu_id,
+        menu_slug=menu_slug,
+        menu_location=menu_location,
+    )
+    if not resolved_menu_id:
+        return {"errore": "Menu non trovato"}
+
+    items_resp = await client.get(
+        "/wp-json/wp/v2/menu-items",
+        params={"menus": resolved_menu_id, "per_page": 100, "context": "edit"},
+    )
+    if items_resp.status_code != 200:
+        return {"errore": f"HTTP {items_resp.status_code}: {items_resp.text[:200]}"}
+
+    items = items_resp.json()
+    titolo_norm = _normalize_text(titolo)
+    url_norm = url.rstrip("/")
+    for item in items:
+        item_title = _normalize_text(item.get("title", {}).get("rendered", ""))
+        item_url = (item.get("url") or "").rstrip("/")
+        if item_title == titolo_norm or item_url == url_norm:
+            return {
+                "successo": True,
+                "esistente": True,
+                "menu_id": resolved_menu_id,
+                "item_id": item.get("id"),
+                "titolo": item.get("title", {}).get("rendered", titolo),
+                "url": item.get("url"),
+            }
+
+    next_order = menu_order or (max((item.get("menu_order", 0) for item in items), default=0) + 1)
+    payload = {
+        "title": titolo,
+        "status": "publish",
+        "menus": resolved_menu_id,
+        "parent": parent_id,
+        "menu_order": next_order,
+    }
+    if object_id:
+        payload.update({
+            "type": item_type or "post_type",
+            "object": object_type,
+            "object_id": object_id,
+        })
+    else:
+        payload.update({
+            "type": item_type or "custom",
+            "object": "custom",
+            "url": url,
+        })
+
+    r = await client.post("/wp-json/wp/v2/menu-items", json=payload)
+    if r.status_code not in (200, 201):
+        return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+    data = r.json()
+    aggiorna_contesto_sito("blog_menu_principale", f"{titolo} -> {data.get('url', url)}")
+    return {
+        "successo": True,
+        "esistente": False,
+        "menu_id": resolved_menu_id,
+        "item_id": data.get("id"),
+        "titolo": data.get("title", {}).get("rendered", titolo),
+        "url": data.get("url", url),
+        "menu_order": data.get("menu_order", next_order),
+    }
+
+
+async def imposta_regola_categorie_blog(regole: dict | None = None, attiva: bool = True) -> dict:
+    """Salva le regole automatiche di categoria per i futuri articoli creati dall'agente."""
+    regole_finali = DEFAULT_BLOG_CATEGORY_RULES.copy()
+    if regole:
+        for categoria, keyword_list in regole.items():
+            pulite = [str(keyword).strip() for keyword in keyword_list if str(keyword).strip()]
+            if pulite:
+                regole_finali[categoria] = pulite
+
+    aggiorna_contesto_sito("blog_regole_categorie", json.dumps(regole_finali, ensure_ascii=False))
+    aggiorna_contesto_sito("blog_regole_categorie_attive", "true" if attiva else "false")
+    return {
+        "successo": True,
+        "attiva": attiva,
+        "categorie": sorted(regole_finali.keys()),
+        "regole": regole_finali,
+    }
 
 
 async def leggi_impostazioni_wordpress() -> dict:
@@ -941,8 +1137,86 @@ async def lista_categorie_blog(search: str | None = None, limit: int = 50) -> di
 
 
 # ==========================================
-# HELPER: Categorie blog, tag, immagini
+# HELPER: Categorie blog, menu, tag, immagini
 # ==========================================
+
+def _normalize_text(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"\s+", " ", ascii_only).strip().lower()
+
+
+def _load_blog_category_rules() -> dict[str, list[str]]:
+    stored = leggi_contesto_sito("blog_regole_categorie")
+    raw_value = stored.get("valore") if stored.get("chiave") == "blog_regole_categorie" else None
+    if raw_value:
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, dict):
+                return {key: [str(item) for item in value] for key, value in parsed.items() if isinstance(value, list)}
+        except json.JSONDecodeError:
+            pass
+    return DEFAULT_BLOG_CATEGORY_RULES
+
+
+def _blog_category_rules_enabled() -> bool:
+    stored = leggi_contesto_sito("blog_regole_categorie_attive")
+    raw_value = stored.get("valore") if stored.get("chiave") == "blog_regole_categorie_attive" else None
+    if raw_value is None:
+        return True
+    return str(raw_value).strip().lower() == "true"
+
+
+def _infer_blog_category(
+    titolo: str,
+    contenuto_html: str | None = None,
+    excerpt: str | None = None,
+    tags: list[str] | None = None,
+) -> str:
+    if not _blog_category_rules_enabled():
+        return "Guide Ricambi"
+
+    combined = " ".join(filter(None, [titolo, excerpt, contenuto_html or "", " ".join(tags or [])]))
+    normalized = _normalize_text(combined)
+    best_category = "Guide Ricambi"
+    best_score = 0
+
+    for category, keywords in _load_blog_category_rules().items():
+        score = sum(1 for keyword in keywords if _normalize_text(keyword) in normalized)
+        if score > best_score:
+            best_category = category
+            best_score = score
+
+    return best_category
+
+
+async def _resolve_menu_id(
+    client,
+    menu_id: int | None = None,
+    menu_slug: str | None = None,
+    menu_location: str | None = None,
+) -> int | None:
+    if menu_id:
+        return menu_id
+
+    if menu_location:
+        r_location = await client.get(f"/wp-json/wp/v2/menu-locations/{menu_location}")
+        if r_location.status_code == 200:
+            location = r_location.json()
+            if location.get("menu"):
+                return location["menu"]
+
+    if menu_slug:
+        r_menus = await client.get("/wp-json/wp/v2/menus", params={"per_page": 100})
+        if r_menus.status_code == 200:
+            for menu in r_menus.json():
+                if menu.get("slug") == menu_slug or _normalize_text(menu.get("name")) == _normalize_text(menu_slug):
+                    return menu.get("id")
+
+    return None
+
 
 async def _get_or_create_blog_categoria(client, nome: str) -> int | None:
     """Cerca o crea una categoria blog WordPress (diversa da WooCommerce)."""

@@ -104,7 +104,86 @@ Il tuo lavoro è aiutare il titolare del negozio con:
 4. Salva nella memoria se rilevante
 ```
 
+### G. Collegare Magazine AutoVolt al Menu del Sito
+
+**Sito: auto-volt.it**
+- Menu principale (location `primary`): ID 64 — "Primary"
+- La pagina landing blog è: `https://auto-volt.it/magazine-auto/` (ID 3782)
+- Il nativo archivio post è: `/blog/` (page_for_posts = 28) — NON va sostituito
+
+```
+1. L'utente dice: "Aggiungi il blog al menu"
+2. Aggiungi la voce al menu principale evitando duplicati:
+   → aggiungi_voce_menu(
+       titolo="Magazine",
+       url="https://auto-volt.it/magazine-auto/",
+       menu_location="primary"
+   )
+3. Controlla il risultato: {successo, esistente, item_id, url}
+4. Salva in contesto:
+   → aggiorna_contesto_sito("blog_in_menu", "Magazine -> https://auto-volt.it/magazine-auto/")
+```
+
+### H. Creare un Nuovo Articolo Blog con Categoria Automatica
+
+Le categorie blog attive sono (create a marzo 2026):
+- `Guide Ricambi` (ID 162) — guide "quale ricambio per quale auto"
+- `Manutenzione Auto` (ID 163) — tagliando, sostituzione, intervalli
+- `Problemi e Diagnosi` (ID 164) — spie, guasti, sintomi
+- `Confronti e Recensioni` (ID 165) — comparazioni marca
+- `News Auto Elettriche` (ID 166) — EV, batterie, ricarica
+
+**Regola automatica attiva:** se `categoria` non è specificata nella chiamata `crea_post_blog`,
+il sistema sceglie la categoria migliore analizzando le parole chiave nel titolo e nel testo.
+
+```
+1. L'utente dice: "Scrivi un articolo sulla spia olio accesa sulla Fiat Punto"
+2. Consulta: leggi_knowledge("blog-seo-ricambi.md")
+3. Scrivi contenuto HTML SEO (min 800 parole, H1, H2, FAQ)
+4. PREFERIBILMENTE specifica la categoria esplicitamente:
+   → crea_post_blog(
+       titolo, contenuto_html, slug, stato="draft",
+       categoria="Problemi e Diagnosi",
+       tags=["fiat","punto","spia-olio"],
+       excerpt="..."
+   )
+5. In mancanza di categoria, il sistema la assegna in automatico.
+6. Presenta all'utente titolo, URL bozza e categoria assegnata.
+7. Dopo OK: modifica_post_blog(post_id, stato="publish")
+```
+
+### I. Impostare o Modificare le Regole di Categoria Automatica
+
+```
+1. L'utente dice: "Aggiungi la keyword 'freni' alla categoria Manutenzione Auto"
+2. Attiva/aggiorna le regole:
+   → imposta_regola_categorie_blog(
+       regole={"Manutenzione Auto": ["manutenzione","tagliando","cambiare","freni","olio motore"]},
+       attiva=True
+   )
+3. Conferma all'utente le nuove regole salvate.
+
+Per attivare le regole predefinite senza modifiche:
+→ imposta_regola_categorie_blog(attiva=True)
+```
+
 ---
+
+## Struttura Blog Auto-Volt (stato marzo 2026)
+
+```
+Site: https://auto-volt.it
+Archivio nativo post: https://auto-volt.it/blog/ (page_for_posts = 28) — NON toccare
+Landing editoriale: https://auto-volt.it/magazine-auto/ (page ID 3782)
+Menu principale: ID 64 ("Primary", location: primary)
+
+Categorie blog (create con crea_struttura_blog_completa):
+  - Guide Ricambi        ID 162
+  - Manutenzione Auto    ID 163
+  - Problemi e Diagnosi  ID 164
+  - Confronti e Recensioni ID 165
+  - News Auto Elettriche ID 166
+```
 
 ## Regole di Comportamento
 
@@ -167,7 +246,10 @@ codice_prodotto | codice_oem | marca_auto | note
 | Aggiornare prezzi | aggiornamento-prezzi-b2b.md |
 | Lavorare su CSV | csv-workflow.md |
 | Scrivere articolo blog | blog-seo-ricambi.md, seo-on-page.md |
+| Collegare voce al menu | workflow-agente-completo.md (sezione G) |
+| Creare articolo con auto-categoria | workflow-agente-completo.md (sezione H) |
 | Navigare B2B | azcar-import.md |
 | WooCommerce API | woocommerce-api-tips.md |
 | SEO prodotti | seo-ecommerce.md, seo-ricambi-auto.md |
 | Plugin compatibilità | plugin-compatibilita.md |
+

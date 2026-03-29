@@ -43,6 +43,8 @@ from tools.wordpress_write import (
     leggi_impostazioni_wordpress,
     ispeziona_struttura_blog,
     crea_struttura_blog_completa,
+    aggiungi_voce_menu,
+    imposta_regola_categorie_blog,
 )
 from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web, accedi_portale_b2b
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
@@ -650,6 +652,50 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "aggiungi_voce_menu",
+        "description": (
+            "Aggiunge una voce a un menu WordPress (location: primary, secondary_menu, footer_menu, mobile_menu). "
+            "Evita duplicati. Usalo per collegare pagine, categorie, link custom al menu del sito. "
+            "Esempio: collegare /magazine-auto/ al menu principale del sito."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string", "description": "Testo visibile nel menu (es: 'Magazine AutoVolt')"},
+                "url": {"type": "string", "description": "URL della voce menu (es: 'https://auto-volt.it/magazine-auto/')"},
+                "menu_location": {"type": "string", "description": "Posizione menu: primary (default), secondary_menu, footer_menu, mobile_menu"},
+                "menu_id": {"type": "integer", "description": "ID del menu specifico se noto (opzionale)"},
+                "menu_slug": {"type": "string", "description": "Slug del menu (es: 'primary') se non usi menu_location"},
+                "parent_id": {"type": "integer", "description": "ID voce padre per sottovoci (default 0)"},
+                "menu_order": {"type": "integer", "description": "Posizione nell'ordine (calcolata automaticamente se omessa)"},
+                "object_id": {"type": "integer", "description": "ID WP della pagina/post/categoria se tipo='post_type'"},
+                "object_type": {"type": "string", "description": "Tipo oggetto: 'page', 'post', 'category'. Default 'page'"},
+                "item_type": {"type": "string", "description": "Tipo voce: 'post_type', 'taxonomy', 'custom'. Default 'custom' (link libero)"},
+            },
+            "required": ["titolo", "url"],
+        },
+    },
+    {
+        "name": "imposta_regola_categorie_blog",
+        "description": (
+            "Configura le regole di auto-assegnazione delle categorie blog. "
+            "Da questo momento, ogni articolo creato senza categoria esplicita viene assegnato automaticamente "
+            "alla categoria giusta in base alle parole chiave nel titolo e nel testo. "
+            "Usalo anche solo con attiva=true per attivare le regole predefinite."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "regole": {
+                    "type": "object",
+                    "description": "Dict opzionale: {nome_categoria: [lista keyword]}. Se omesso usa le regole predefinite del sistema.",
+                    "additionalProperties": {"type": "array", "items": {"type": "string"}}
+                },
+                "attiva": {"type": "boolean", "description": "Attiva o disattiva la classificazione automatica (default true)"}
+            },
+        },
+    },
     # --- Memoria e Contesto ---
     {
         "name": "aggiorna_contesto_sito",
@@ -1006,6 +1052,10 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return await ispeziona_struttura_blog()
     elif name == "crea_struttura_blog_completa":
         return await crea_struttura_blog_completa(**input_dict)
+    elif name == "aggiungi_voce_menu":
+        return await aggiungi_voce_menu(**input_dict)
+    elif name == "imposta_regola_categorie_blog":
+        return await imposta_regola_categorie_blog(**input_dict)
     elif name == "leggi_knowledge":
         return leggi_knowledge(**input_dict)
     elif name == "aggiorna_knowledge":
@@ -1486,6 +1536,15 @@ REGOLE ADHD:
                 try:
                     result = await esegui_tool(tool_use.name, tool_use.input)
                     if progress_callback:
+                        if result.get("modello_usato"):
+                            await progress_callback(f"ℹ {tool_use.name}: modello {result['modello_usato']}")
+                        tentativi = result.get("tentativi") or []
+                        if tentativi:
+                            dettagli = "; ".join(
+                                f"{t.get('modello', '?')} ({t.get('max_steps', '?')} step)" if t.get('max_steps') else t.get('modello', '?')
+                                for t in tentativi
+                            )
+                            await progress_callback(f"ℹ {tool_use.name}: fallback provati -> {dettagli}")
                         stato = "✓" if not result.get("errore") else "✗"
                         await progress_callback(f"{stato} {tool_use.name} completato")
                     content = json.dumps(result, ensure_ascii=False)
