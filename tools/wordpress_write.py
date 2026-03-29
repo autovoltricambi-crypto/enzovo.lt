@@ -3,6 +3,7 @@ import asyncio
 import json
 import httpx
 from tools.cataloghi import get_wp_client
+from tools.memoria import salva_prodotto_in_memoria, aggiorna_contesto_sito
 
 
 # ==========================================
@@ -43,13 +44,16 @@ async def crea_prodotto(
     r = await client.post("/wp-json/wc/v3/products", json=payload)
     if r.status_code in (200, 201):
         data = r.json()
-        return {
+        risultato = {
             "successo": True,
             "id": data["id"],
             "nome": data["name"],
             "prezzo": data["regular_price"],
             "sku": data["sku"],
         }
+        # Traccia in memoria locale
+        salva_prodotto_in_memoria(risultato)
+        return risultato
     return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
 
 
@@ -384,3 +388,614 @@ async def aggiungi_attributi_prodotto(product_id: int, attributi: dict) -> dict:
     if r.status_code == 200:
         return {"successo": True, "product_id": product_id, "attributi_aggiunti": list(attributi.keys())}
     return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+
+# ==========================================
+# RICERCA PER RELATED_SKU_CODE
+# ==========================================
+
+async def cerca_prodotti_per_related_sku(related_sku_code: str) -> dict:
+    """
+    Cerca tutti i prodotti WooCommerce con un dato related_sku_code.
+    Usa la WooCommerce REST API con filtro meta_data.
+    Ritorna lista di prodotti con id, nome, sku, prezzo, descrizione.
+    """
+    client = get_wp_client()
+
+    # WooCommerce non supporta filtro meta diretto via REST API standard
+    # Recuperiamo tutti e filtriamo lato server (max 100 per pagina)
+    tutti = []
+    pagina = 1
+    while True:
+        r = await client.get("/wp-json/wc/v3/products", params={
+            "per_page": 100,
+            "page": pagina,
+            "status": "any",
+        })
+        if r.status_code != 200:
+            return {"errore": f"HTTP {r.status_code}"}
+        batch = r.json()
+        if not batch:
+            break
+        tutti.extend(batch)
+        if len(batch) < 100:
+            break
+        pagina += 1
+
+    # Filtra per related_sku_code nei meta_data
+    trovati = []
+    for p in tutti:
+        meta = p.get("meta_data", [])
+        for m in meta:
+            if m.get("key") == "related_sku_code" and str(m.get("value", "")).lower() == related_sku_code.lower():
+                trovati.append({
+                    "id": p["id"],
+                    "nome": p["name"],
+                    "sku": p["sku"],
+                    "prezzo": p["regular_price"],
+                    "descrizione": p.get("description", "")[:200],
+                    "related_sku_code": related_sku_code,
+                })
+                break
+
+    return {
+        "related_sku_code": related_sku_code,
+        "trovati": len(trovati),
+        "prodotti": trovati,
+    }
+
+
+# ==========================================
+# AGGIORNAMENTO DESCRIZIONI IN BULK
+# ==========================================
+
+async def aggiorna_descrizioni_bulk(aggiornamenti: list) -> dict:
+    """
+    Aggiorna descrizione e/o nome di più prodotti in batch.
+
+    aggiornamenti: lista di dict, ognuno con:
+      - product_id: int (obbligatorio)
+      - descrizione: str (opzionale)
+      - nome: str (opzionale)
+
+    Usa la WooCommerce batch API per efficienza.
+    """
+    client = get_wp_client()
+
+    if not aggiornamenti:
+        return {"errore": "Lista aggiornamenti vuota"}
+
+    update_payload = []
+    for a in aggiornamenti:
+        item = {"id": a["product_id"]}
+        if "descrizione" in a:
+            item["description"] = a["descrizione"]
+        if "nome" in a:
+            item["name"] = a["nome"]
+        update_payload.append(item)
+
+    # WooCommerce batch API: max 100 per batch
+    aggiornati = 0
+    errori = []
+    for i in range(0, len(update_payload), 100):
+        batch = update_payload[i:i + 100]
+        r = await client.post("/wp-json/wc/v3/products/batch", json={"update": batch})
+        if r.status_code == 200:
+            data = r.json()
+            aggiornati += len(data.get("update", []))
+        else:
+            errori.append(f"Batch {i//100}: HTTP {r.status_code}")
+
+    return {
+        "successo": True,
+        "aggiornati": aggiornati,
+        "totale_richiesti": len(aggiornamenti),
+        "errori": errori if errori else None,
+    }
+
+
+# ==========================================
+# AGGIORNAMENTO PREZZI IN BULK
+# ==========================================
+
+async def aggiorna_prezzi_bulk(aggiornamenti: list) -> dict:
+    """
+    Aggiorna prezzi di più prodotti in batch.
+
+    aggiornamenti: lista di dict, ognuno con:
+      - product_id: int
+      - prezzo: float (regular_price)
+      - prezzo_scontato: float (opzionale, sale_price)
+
+    Usa la WooCommerce batch API.
+    """
+    client = get_wp_client()
+
+    if not aggiornamenti:
+        return {"errore": "Lista aggiornamenti vuota"}
+
+    update_payload = []
+    for a in aggiornamenti:
+        item = {"id": a["product_id"], "regular_price": str(a["prezzo"])}
+        if "prezzo_scontato" in a and a["prezzo_scontato"] is not None:
+            item["sale_price"] = str(a["prezzo_scontato"])
+        update_payload.append(item)
+
+    aggiornati = 0
+    errori = []
+    for i in range(0, len(update_payload), 100):
+        batch = update_payload[i:i + 100]
+        r = await client.post("/wp-json/wc/v3/products/batch", json={"update": batch})
+        if r.status_code == 200:
+            data = r.json()
+            aggiornati += len(data.get("update", []))
+        else:
+            errori.append(f"Batch {i//100}: HTTP {r.status_code}")
+
+    return {
+        "successo": True,
+        "aggiornati": aggiornati,
+        "totale_richiesti": len(aggiornamenti),
+        "errori": errori if errori else None,
+    }
+
+
+# ==========================================
+# MODIFICA PRODOTTO ESTESA (meta_data, sku, immagini)
+# ==========================================
+
+async def modifica_prodotto_completo(
+    product_id: int,
+    nome: str | None = None,
+    prezzo: float | None = None,
+    prezzo_scontato: float | None = None,
+    descrizione: str | None = None,
+    descrizione_breve: str | None = None,
+    stock: int | None = None,
+    sku: str | None = None,
+    meta_data: dict | None = None,
+    immagini: list | None = None,
+) -> dict:
+    """
+    Modifica completa di un prodotto WooCommerce.
+    Supporta tutti i campi inclusi meta_data, immagini e SKU.
+
+    meta_data: dict chiave-valore (es: {"related_sku_code": "R304"})
+    immagini: lista di URL (es: ["https://example.com/img.jpg"])
+    """
+    client = get_wp_client()
+
+    payload = {}
+    if nome is not None:
+        payload["name"] = nome
+    if prezzo is not None:
+        payload["regular_price"] = str(prezzo)
+    if prezzo_scontato is not None:
+        payload["sale_price"] = str(prezzo_scontato)
+    if descrizione is not None:
+        payload["description"] = descrizione
+    if descrizione_breve is not None:
+        payload["short_description"] = descrizione_breve
+    if stock is not None:
+        payload["stock_quantity"] = stock
+        payload["manage_stock"] = True
+    if sku is not None:
+        payload["sku"] = sku
+    if meta_data:
+        payload["meta_data"] = [{"key": k, "value": v} for k, v in meta_data.items()]
+    if immagini:
+        payload["images"] = [{"src": url} for url in immagini]
+
+    r = await client.put(f"/wp-json/wc/v3/products/{product_id}", json=payload)
+    if r.status_code == 200:
+        data = r.json()
+        return {
+            "successo": True,
+            "id": data["id"],
+            "nome": data["name"],
+            "prezzo": data["regular_price"],
+            "sku": data.get("sku", ""),
+        }
+    return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+
+# ==========================================
+# POST BLOG WORDPRESS
+# ==========================================
+
+async def crea_post_blog(
+    titolo: str,
+    contenuto_html: str,
+    slug: str | None = None,
+    stato: str = "draft",
+    categoria: str | None = None,
+    tags: list | None = None,
+    excerpt: str | None = None,
+    immagine_copertina: str | None = None,
+) -> dict:
+    """
+    Crea un post blog WordPress via /wp-json/wp/v2/posts.
+    Diverso da crea_pagina_html che crea pagine statiche.
+
+    stato: 'draft' o 'publish'
+    categoria: nome categoria blog (verrà creata se non esiste)
+    tags: lista stringhe tag
+    immagine_copertina: URL immagine featured
+    """
+    client = get_wp_client()
+
+    payload = {
+        "title": titolo,
+        "content": contenuto_html,
+        "status": stato,
+    }
+    if slug:
+        payload["slug"] = slug
+    if excerpt:
+        payload["excerpt"] = excerpt
+
+    # Gestione categoria blog
+    if categoria:
+        cat_id = await _get_or_create_blog_categoria(client, categoria)
+        if cat_id:
+            payload["categories"] = [cat_id]
+
+    # Gestione tag
+    if tags:
+        tag_ids = []
+        for tag_nome in tags:
+            tag_id = await _get_or_create_tag(client, tag_nome)
+            if tag_id:
+                tag_ids.append(tag_id)
+        if tag_ids:
+            payload["tags"] = tag_ids
+
+    # Immagine di copertina
+    if immagine_copertina:
+        media_id = await _upload_immagine_da_url(client, immagine_copertina)
+        if media_id:
+            payload["featured_media"] = media_id
+
+    r = await client.post("/wp-json/wp/v2/posts", json=payload)
+    if r.status_code in (200, 201):
+        data = r.json()
+        return {
+            "successo": True,
+            "id": data["id"],
+            "titolo": data["title"]["rendered"],
+            "url": data["link"],
+            "stato": data["status"],
+        }
+    return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+
+async def modifica_post_blog(
+    post_id: int,
+    titolo: str | None = None,
+    contenuto_html: str | None = None,
+    stato: str | None = None,
+    excerpt: str | None = None,
+) -> dict:
+    """Modifica un post blog esistente."""
+    client = get_wp_client()
+
+    payload = {}
+    if titolo:
+        payload["title"] = titolo
+    if contenuto_html:
+        payload["content"] = contenuto_html
+    if stato:
+        payload["status"] = stato
+    if excerpt:
+        payload["excerpt"] = excerpt
+
+    r = await client.post(f"/wp-json/wp/v2/posts/{post_id}", json=payload)
+    if r.status_code == 200:
+        data = r.json()
+        return {
+            "successo": True,
+            "id": data["id"],
+            "titolo": data["title"]["rendered"],
+            "url": data["link"],
+        }
+    return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+
+async def lista_post_blog(search: str = None, categoria: str = None, limit: int = 20) -> dict:
+    """Lista post blog con filtri opzionali."""
+    client = get_wp_client()
+
+    params = {"per_page": min(limit, 100)}
+    if search:
+        params["search"] = search
+    if categoria:
+        r_cat = await client.get("/wp-json/wp/v2/categories", params={"search": categoria})
+        if r_cat.status_code == 200 and r_cat.json():
+            params["categories"] = r_cat.json()[0]["id"]
+
+    r = await client.get("/wp-json/wp/v2/posts", params=params)
+    if r.status_code != 200:
+        return {"errore": f"HTTP {r.status_code}"}
+
+    posts = [
+        {
+            "id": p["id"],
+            "titolo": p["title"]["rendered"],
+            "stato": p["status"],
+            "data": p["date"][:10],
+            "url": p["link"],
+        }
+        for p in r.json()
+    ]
+    return {"totale": len(posts), "posts": posts}
+
+
+async def leggi_impostazioni_wordpress() -> dict:
+    """Legge le impostazioni principali del sito WordPress utili all'agente."""
+    client = get_wp_client()
+
+    r = await client.get("/wp-json/wp/v2/settings")
+    if r.status_code != 200:
+        return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+    data = r.json()
+    return {
+        "successo": True,
+        "titolo_sito": data.get("title"),
+        "descrizione": data.get("description"),
+        "url": data.get("url"),
+        "show_on_front": data.get("show_on_front"),
+        "page_on_front": data.get("page_on_front"),
+        "page_for_posts": data.get("page_for_posts"),
+        "default_category": data.get("default_category"),
+        "posts_per_page": data.get("posts_per_page"),
+        "default_comment_status": data.get("default_comment_status"),
+    }
+
+
+async def ispeziona_struttura_blog() -> dict:
+    """Ispeziona pagina blog, categorie e post per capire la struttura reale del blog."""
+    client = get_wp_client()
+
+    settings_resp = await client.get("/wp-json/wp/v2/settings")
+    if settings_resp.status_code != 200:
+        return {"errore": f"HTTP {settings_resp.status_code}: {settings_resp.text[:200]}"}
+    settings = settings_resp.json()
+
+    page_for_posts = settings.get("page_for_posts")
+    page_on_front = settings.get("page_on_front")
+
+    blog_page = None
+    if page_for_posts:
+        r_page = await client.get(f"/wp-json/wp/v2/pages/{page_for_posts}")
+        if r_page.status_code == 200:
+            p = r_page.json()
+            blog_page = {
+                "id": p["id"],
+                "titolo": p["title"]["rendered"],
+                "slug": p.get("slug"),
+                "url": p.get("link"),
+                "stato": p.get("status"),
+            }
+
+    categorie = await lista_categorie_blog(limit=100)
+    posts = await lista_post_blog(limit=50)
+
+    senza_categoria = []
+    categorie_trovate = []
+    if posts.get("posts"):
+        r_posts = await client.get("/wp-json/wp/v2/posts", params={"per_page": 50, "_embed": 1})
+        if r_posts.status_code == 200:
+            for post in r_posts.json():
+                cats = post.get("categories", [])
+                if not cats or 1 in cats:
+                    senza_categoria.append({
+                        "id": post["id"],
+                        "titolo": post["title"]["rendered"],
+                        "url": post["link"],
+                    })
+        categorie_trovate = categorie.get("categorie", [])
+
+    categorie_utili = [
+        "Guide Ricambi",
+        "Manutenzione Auto",
+        "Problemi e Diagnosi",
+        "Confronti e Recensioni",
+        "News Auto Elettriche",
+    ]
+    nomi_esistenti = {c["nome"].lower() for c in categorie_trovate}
+    categorie_mancanti = [nome for nome in categorie_utili if nome.lower() not in nomi_esistenti]
+
+    return {
+        "successo": True,
+        "settings": {
+            "show_on_front": settings.get("show_on_front"),
+            "page_on_front": page_on_front,
+            "page_for_posts": page_for_posts,
+            "posts_per_page": settings.get("posts_per_page"),
+        },
+        "pagina_blog": blog_page,
+        "categorie_totali": categorie.get("totale", 0),
+        "categorie": categorie_trovate,
+        "post_totali": posts.get("totale", 0),
+        "post_senza_categoria_utile": senza_categoria,
+        "categorie_consigliate_mancanti": categorie_mancanti,
+    }
+
+
+async def crea_struttura_blog_completa(categorie: list[str] | None = None) -> dict:
+    """
+    Crea la struttura base del blog Auto-Volt: categorie principali e salvataggio contesto.
+    Non tocca i post esistenti, non pubblica articoli e non modifica la page_for_posts.
+    """
+    default_categorie = categorie or [
+        "Guide Ricambi",
+        "Manutenzione Auto",
+        "Problemi e Diagnosi",
+        "Confronti e Recensioni",
+        "News Auto Elettriche",
+    ]
+
+    creati = []
+    esistenti = []
+    errori = []
+
+    for nome in default_categorie:
+        result = await crea_categoria_blog(nome=nome)
+        if result.get("errore"):
+            errori.append({"nome": nome, "errore": result["errore"]})
+            continue
+        item = {
+            "id": result.get("id"),
+            "nome": result.get("nome", nome),
+            "slug": result.get("slug"),
+        }
+        if result.get("esistente"):
+            esistenti.append(item)
+        else:
+            creati.append(item)
+
+    struttura = [c["nome"] for c in creati + esistenti]
+    aggiorna_contesto_sito("blog_struttura_categorie", ", ".join(struttura))
+    aggiorna_contesto_sito("blog_preferenza", "Organizzare i post del blog in categorie stabili e riusabili")
+
+    ispezione = await ispeziona_struttura_blog()
+
+    return {
+        "successo": len(errori) == 0,
+        "categorie_create": creati,
+        "categorie_esistenti": esistenti,
+        "errori": errori,
+        "ispezione": ispezione,
+    }
+
+
+async def crea_categoria_blog(
+    nome: str,
+    slug: str | None = None,
+    descrizione: str | None = None,
+    parent_id: int | None = None,
+) -> dict:
+    """Crea una categoria blog WordPress esplicita, se non esiste già."""
+    client = get_wp_client()
+
+    r = await client.get("/wp-json/wp/v2/categories", params={"search": nome, "per_page": 100})
+    if r.status_code == 200:
+        for c in r.json():
+            if c["name"].lower() == nome.lower() or (slug and c.get("slug") == slug):
+                return {
+                    "successo": True,
+                    "esistente": True,
+                    "id": c["id"],
+                    "nome": c["name"],
+                    "slug": c.get("slug"),
+                    "parent": c.get("parent", 0),
+                }
+
+    payload = {"name": nome}
+    if slug:
+        payload["slug"] = slug
+    if descrizione:
+        payload["description"] = descrizione
+    if parent_id:
+        payload["parent"] = parent_id
+
+    r = await client.post("/wp-json/wp/v2/categories", json=payload)
+    if r.status_code in (200, 201):
+        data = r.json()
+        return {
+            "successo": True,
+            "esistente": False,
+            "id": data["id"],
+            "nome": data["name"],
+            "slug": data.get("slug"),
+            "parent": data.get("parent", 0),
+        }
+    return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+
+async def lista_categorie_blog(search: str | None = None, limit: int = 50) -> dict:
+    """Lista categorie blog WordPress."""
+    client = get_wp_client()
+
+    params = {"per_page": min(limit, 100)}
+    if search:
+        params["search"] = search
+
+    r = await client.get("/wp-json/wp/v2/categories", params=params)
+    if r.status_code != 200:
+        return {"errore": f"HTTP {r.status_code}: {r.text[:200]}"}
+
+    categorie = [
+        {
+            "id": c["id"],
+            "nome": c["name"],
+            "slug": c.get("slug"),
+            "parent": c.get("parent", 0),
+            "descrizione": c.get("description", ""),
+            "conteggio_post": c.get("count", 0),
+        }
+        for c in r.json()
+    ]
+    return {"totale": len(categorie), "categorie": categorie}
+
+
+# ==========================================
+# HELPER: Categorie blog, tag, immagini
+# ==========================================
+
+async def _get_or_create_blog_categoria(client, nome: str) -> int | None:
+    """Cerca o crea una categoria blog WordPress (diversa da WooCommerce)."""
+    r = await client.get("/wp-json/wp/v2/categories", params={"search": nome})
+    if r.status_code == 200 and r.json():
+        for c in r.json():
+            if c["name"].lower() == nome.lower():
+                return c["id"]
+    r_create = await client.post("/wp-json/wp/v2/categories", json={"name": nome})
+    if r_create.status_code in (200, 201):
+        return r_create.json()["id"]
+    return None
+
+
+async def _get_or_create_tag(client, nome: str) -> int | None:
+    """Cerca o crea un tag WordPress."""
+    r = await client.get("/wp-json/wp/v2/tags", params={"search": nome})
+    if r.status_code == 200 and r.json():
+        for t in r.json():
+            if t["name"].lower() == nome.lower():
+                return t["id"]
+    r_create = await client.post("/wp-json/wp/v2/tags", json={"name": nome})
+    if r_create.status_code in (200, 201):
+        return r_create.json()["id"]
+    return None
+
+
+async def _upload_immagine_da_url(client, url: str) -> int | None:
+    """Scarica un'immagine da URL e la carica nella media library WordPress."""
+    try:
+        import httpx as _httpx
+        async with _httpx.AsyncClient(follow_redirects=True) as dl:
+            resp = await dl.get(url, timeout=30)
+            if resp.status_code != 200:
+                return None
+            content = resp.content
+            content_type = resp.headers.get("content-type", "image/jpeg")
+
+        # Estrai nome file dall'URL
+        filename = url.split("/")[-1].split("?")[0]
+        if not filename or "." not in filename:
+            filename = "immagine.jpg"
+
+        r = await client.post(
+            "/wp-json/wp/v2/media",
+            content=content,
+            headers={
+                "Content-Type": content_type,
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+        if r.status_code in (200, 201):
+            return r.json()["id"]
+    except Exception:
+        pass
+    return None

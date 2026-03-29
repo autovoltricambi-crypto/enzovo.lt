@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from config import Config
 from agent_simple import chat
 from tools.cataloghi import browser_login_wp, browser_chiudi
+from tools.memoria import salva_conversazione, carica_conversazione, salva_riepilogo_sessione
 
 Config.validate()
 
@@ -27,13 +28,34 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    """Chiude il browser quando il server si spegne."""
+    """Salva tutte le conversazioni e chiude il browser."""
+    for sid, cron in conversazioni.items():
+        if cron:
+            _salva_riepilogo_da_cronologia(sid, cron)
+            salva_conversazione(sid, cron)
     await browser_chiudi()
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 conversazioni: dict[str, list] = {}
+
+
+def _salva_riepilogo_da_cronologia(session_id: str, cronologia: list) -> None:
+    """Estrae un riepilogo dalla cronologia e lo salva su disco."""
+    msg_utente = sum(1 for m in cronologia if m.get("role") == "user" and isinstance(m.get("content"), str))
+    msg_agente = sum(1 for m in cronologia if m.get("role") == "assistant" and isinstance(m.get("content"), str))
+    if msg_utente == 0:
+        return
+    # Prendi gli ultimi messaggi di testo per costruire un riepilogo semplice
+    ultimi = []
+    for m in cronologia[-6:]:
+        c = m.get("content", "")
+        if isinstance(c, str) and c.strip():
+            role = "Utente" if m["role"] == "user" else "Agente"
+            ultimi.append(f"{role}: {c[:150]}")
+    riepilogo = " | ".join(ultimi) if ultimi else "Sessione senza contenuto testuale."
+    salva_riepilogo_sessione(session_id, msg_utente, msg_agente, riepilogo)
 
 
 def _ripulisci_cronologia_corrotta(cronologia: list) -> None:
@@ -82,7 +104,7 @@ async def api_chat(request: Request):
         return JSONResponse({"errore": "Messaggio vuoto"}, status_code=400)
 
     if session_id not in conversazioni:
-        conversazioni[session_id] = []
+        conversazioni[session_id] = carica_conversazione(session_id)
 
     coda: asyncio.Queue = asyncio.Queue()
 
@@ -98,6 +120,7 @@ async def api_chat(request: Request):
                 progress_callback=progress_callback,
             )
             conversazioni[session_id] = cronologia
+            salva_conversazione(session_id, cronologia)
 
             csv_file = None
             if "exports/" in risposta or ".csv" in risposta:
@@ -151,7 +174,11 @@ async def api_chat(request: Request):
 async def api_reset(request: Request):
     data = await request.json()
     session_id = data.get("session_id", "default")
+    cron = conversazioni.get(session_id, [])
+    if cron:
+        _salva_riepilogo_da_cronologia(session_id, cron)
     conversazioni[session_id] = []
+    salva_conversazione(session_id, [])
     return JSONResponse({"successo": True})
 
 
@@ -272,6 +299,27 @@ async def api_gamification():
     """Ritorna punteggio XP, streak e achievement."""
     from tools.obiettivi import stato_gamification
     return JSONResponse(stato_gamification())
+
+
+@app.get("/api/sessioni")
+async def api_sessioni():
+    """Ritorna tutti i riepiloghi sessione ordinati dal più recente."""
+    from tools.memoria import SESSIONI_DIR
+    import os, json
+    if not os.path.exists(SESSIONI_DIR):
+        return JSONResponse({"sessioni": []})
+    files = sorted(
+        [f for f in os.listdir(SESSIONI_DIR) if f.endswith(".json")],
+        reverse=True,
+    )
+    sessioni = []
+    for f in files:
+        try:
+            with open(os.path.join(SESSIONI_DIR, f), encoding="utf-8") as fh:
+                sessioni.append(json.load(fh))
+        except Exception:
+            continue
+    return JSONResponse({"sessioni": sessioni})
 
 
 if __name__ == "__main__":

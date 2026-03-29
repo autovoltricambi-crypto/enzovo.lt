@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+from datetime import datetime
 from anthropic import AsyncAnthropic
 
 logger = logging.getLogger(__name__)
@@ -30,10 +31,23 @@ from tools.wordpress_write import (
     importa_prodotti_bulk,
     crea_struttura_categorie,
     aggiungi_attributi_prodotto,
+    cerca_prodotti_per_related_sku,
+    aggiorna_descrizioni_bulk,
+    aggiorna_prezzi_bulk,
+    modifica_prodotto_completo,
+    crea_post_blog,
+    modifica_post_blog,
+    lista_post_blog,
+    crea_categoria_blog,
+    lista_categorie_blog,
+    leggi_impostazioni_wordpress,
+    ispeziona_struttura_blog,
+    crea_struttura_blog_completa,
 )
 from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web, accedi_portale_b2b
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
-from tools.csv_export import esporta_csv, lista_csv_salvati
+from tools.csv_export import esporta_csv, lista_csv_salvati, leggi_csv, modifica_csv, aggiungi_colonna_csv, modifica_csv_bulk
+from tools.web_scraping import analizza_struttura_pagina, estrai_dati_con_playwright
 from tools.memoria import (
     salva_ricerca,
     cerca_in_memoria,
@@ -41,11 +55,12 @@ from tools.memoria import (
     aggiorna_contesto_sito,
     leggi_contesto_sito,
     carica_contesto_agente,
-    carica_conoscenze,
     lista_knowledge,
     leggi_knowledge,
     aggiorna_knowledge,
     crea_knowledge,
+    aggiorna_profilo,
+    auto_aggiorna_profilo_da_testo,
 )
 
 Config.validate()
@@ -293,6 +308,31 @@ TOOLS = [
             "required": ["catalogo", "query"],
         },
     },
+    {
+        "name": "analizza_struttura_pagina",
+        "description": "Analizza l'HTML di una pagina per trovare selettori candidati e capire se conviene passare a Playwright dopo l'esplorazione con browser-use.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string"}
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "estrai_dati_con_playwright",
+        "description": "Estrae dati strutturati da una pagina renderizzata con Playwright. Usalo dopo aver capito la struttura della pagina.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string"},
+                "selettori": {"type": "array", "items": {"type": "string"}},
+                "limite": {"type": "integer"},
+                "attesa_ms": {"type": "integer"}
+            },
+            "required": ["url"],
+        },
+    },
     # --- Prezzi ---
     {
         "name": "calcola_prezzo_vendita",
@@ -349,6 +389,266 @@ TOOLS = [
             "ad esempio un file compatibilità veicoli."
         ),
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "leggi_csv",
+        "description": (
+            "Legge un CSV dalla cartella exports/ e ritorna colonne e righe. "
+            "Usalo per ispezionare il contenuto di un CSV prima di modificarlo. "
+            "Ritorna max 50 righe (usa limite_righe=0 per tutte)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string", "description": "Nome del file CSV (es: 'prodotti_r304.csv')"},
+                "limite_righe": {"type": "integer", "description": "Max righe da ritornare (default 50, 0=tutte)"},
+            },
+            "required": ["nome_file"],
+        },
+    },
+    {
+        "name": "modifica_csv",
+        "description": (
+            "Modifica celle specifiche di un CSV. "
+            "Ogni modifica ha: riga (indice 0-based), colonna (nome), valore (nuovo valore). "
+            "Crea nuove colonne automaticamente se non esistono."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string"},
+                "modifiche": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "riga": {"type": "integer", "description": "Indice riga (0-based, escluso header)"},
+                            "colonna": {"type": "string", "description": "Nome colonna"},
+                            "valore": {"type": "string", "description": "Nuovo valore"},
+                        },
+                        "required": ["riga", "colonna", "valore"],
+                    },
+                },
+            },
+            "required": ["nome_file", "modifiche"],
+        },
+    },
+    {
+        "name": "aggiungi_colonna_csv",
+        "description": "Aggiunge una nuova colonna a un CSV esistente con un valore di default.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string"},
+                "nome_colonna": {"type": "string", "description": "Nome della nuova colonna"},
+                "valore_default": {"type": "string", "description": "Valore di default per tutte le righe"},
+            },
+            "required": ["nome_file", "nome_colonna"],
+        },
+    },
+    {
+        "name": "modifica_csv_bulk",
+        "description": (
+            "Modifica una colonna su TUTTE le righe di un CSV (o solo quelle filtrate). "
+            "Perfetto per aggiungere OEM o altri dati a tutte le righe. "
+            "Es: modifica_csv_bulk('r304.csv', 'oem', '11427566327') setta OEM su tutte le righe. "
+            "Con filtro: modifica_csv_bulk('r304.csv', 'oem', '123', 'marca', 'MANN') solo righe MANN."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome_file": {"type": "string"},
+                "colonna": {"type": "string", "description": "Colonna da modificare o creare"},
+                "valore": {"type": "string", "description": "Valore da assegnare"},
+                "filtro_colonna": {"type": "string", "description": "Colonna per filtrare (opzionale)"},
+                "filtro_valore": {"type": "string", "description": "Valore del filtro (opzionale)"},
+            },
+            "required": ["nome_file", "colonna", "valore"],
+        },
+    },
+    # --- Ricerca e modifica prodotti avanzata ---
+    {
+        "name": "cerca_prodotti_per_related_sku",
+        "description": (
+            "Cerca tutti i prodotti WooCommerce con un dato related_sku_code. "
+            "Es: cerca_prodotti_per_related_sku('R304') ritorna tutti i prodotti che vanno sugli stessi veicoli."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "related_sku_code": {"type": "string", "description": "Codice related_sku (es: 'R304')"},
+            },
+            "required": ["related_sku_code"],
+        },
+    },
+    {
+        "name": "aggiorna_descrizioni_bulk",
+        "description": (
+            "Aggiorna descrizione e/o nome di più prodotti WooCommerce in batch. "
+            "Usa la batch API, molto più veloce di modificare uno alla volta."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "aggiornamenti": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "product_id": {"type": "integer"},
+                            "descrizione": {"type": "string"},
+                            "nome": {"type": "string"},
+                        },
+                        "required": ["product_id"],
+                    },
+                },
+            },
+            "required": ["aggiornamenti"],
+        },
+    },
+    {
+        "name": "aggiorna_prezzi_bulk",
+        "description": (
+            "Aggiorna prezzi di più prodotti WooCommerce in batch. "
+            "Usalo dopo aver controllato i prezzi sul portale B2B del fornitore."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "aggiornamenti": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "product_id": {"type": "integer"},
+                            "prezzo": {"type": "number", "description": "Nuovo prezzo (regular_price)"},
+                            "prezzo_scontato": {"type": "number", "description": "Prezzo scontato (sale_price, opzionale)"},
+                        },
+                        "required": ["product_id", "prezzo"],
+                    },
+                },
+            },
+            "required": ["aggiornamenti"],
+        },
+    },
+    {
+        "name": "modifica_prodotto_completo",
+        "description": (
+            "Modifica completa di un prodotto WooCommerce: nome, prezzo, descrizione, "
+            "descrizione_breve, stock, SKU, meta_data, immagini. "
+            "Usa questo invece di modifica_prodotto quando devi toccare meta_data o immagini."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {"type": "integer"},
+                "nome": {"type": "string"},
+                "prezzo": {"type": "number"},
+                "prezzo_scontato": {"type": "number"},
+                "descrizione": {"type": "string"},
+                "descrizione_breve": {"type": "string"},
+                "stock": {"type": "integer"},
+                "sku": {"type": "string"},
+                "meta_data": {"type": "object", "description": "Chiave-valore da salvare come meta (es: {\"related_sku_code\": \"R304\"})"},
+                "immagini": {"type": "array", "items": {"type": "string"}, "description": "Lista URL immagini prodotto"},
+            },
+            "required": ["product_id"],
+        },
+    },
+    # --- Post Blog ---
+    {
+        "name": "crea_post_blog",
+        "description": (
+            "Crea un post blog WordPress (NON una pagina) per SEO. "
+            "Usa per articoli su ricambi, guide, contenuti per posizionamento locale. "
+            "Supporta categorie blog, tag, excerpt e immagine di copertina."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string"},
+                "contenuto_html": {"type": "string", "description": "Contenuto in HTML"},
+                "slug": {"type": "string"},
+                "stato": {"type": "string", "enum": ["draft", "publish"]},
+                "categoria": {"type": "string", "description": "Nome categoria blog"},
+                "tags": {"type": "array", "items": {"type": "string"}, "description": "Lista tag"},
+                "excerpt": {"type": "string", "description": "Riassunto/descrizione breve per SEO"},
+                "immagine_copertina": {"type": "string", "description": "URL immagine featured"},
+            },
+            "required": ["titolo", "contenuto_html"],
+        },
+    },
+    {
+        "name": "modifica_post_blog",
+        "description": "Modifica un post blog WordPress esistente.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "post_id": {"type": "integer"},
+                "titolo": {"type": "string"},
+                "contenuto_html": {"type": "string"},
+                "stato": {"type": "string", "enum": ["draft", "publish"]},
+                "excerpt": {"type": "string"},
+            },
+            "required": ["post_id"],
+        },
+    },
+    {
+        "name": "lista_post_blog",
+        "description": "Lista post blog del sito con filtri opzionali.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string"},
+                "categoria": {"type": "string"},
+                "limit": {"type": "integer"},
+            },
+        },
+    },
+    {
+        "name": "crea_categoria_blog",
+        "description": "Crea una categoria blog WordPress esplicita. Utile per strutturare il blog prima di creare gli articoli.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "slug": {"type": "string"},
+                "descrizione": {"type": "string"},
+                "parent_id": {"type": "integer", "description": "ID categoria padre opzionale"}
+            },
+            "required": ["nome"],
+        },
+    },
+    {
+        "name": "lista_categorie_blog",
+        "description": "Lista le categorie blog WordPress disponibili.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string"},
+                "limit": {"type": "integer"}
+            },
+        },
+    },
+    {
+        "name": "leggi_impostazioni_wordpress",
+        "description": "Legge le impostazioni principali di WordPress: home, pagina blog, posts per page e categoria di default.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ispeziona_struttura_blog",
+        "description": "Analizza la struttura reale del blog: pagina articoli, categorie esistenti, post senza categoria utile e categorie mancanti.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "crea_struttura_blog_completa",
+        "description": "Crea la struttura base del blog per Auto-Volt con categorie principali e salva la decisione in memoria.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "categorie": {"type": "array", "items": {"type": "string"}, "description": "Lista opzionale di categorie blog da creare"}
+            },
+        },
     },
     # --- Memoria e Contesto ---
     {
@@ -462,6 +762,29 @@ TOOLS = [
                 "contenuto": {"type": "string"},
             },
             "required": ["titolo", "contenuto"],
+        },
+    },
+    # --- Profilo Utente ---
+    {
+        "name": "aggiorna_profilo",
+        "description": (
+            "Aggiorna il profilo dell'utente con informazioni personali e preferenze. "
+            "Usalo quando l'utente si presenta, dice il suo nome, descrive la sua attività, "
+            "o comunica preferenze. Salva SUBITO senza chiedere conferma. "
+            "Campi standard: nome, attivita, settore, budget_mensile, obiettivo_principale, preferenze, note_personali. "
+            "Puoi aggiungere campi custom."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "Nome dell'utente"},
+                "attivita": {"type": "string", "description": "Tipo di attività (es: negozio ricambi auto)"},
+                "settore": {"type": "string", "description": "Settore di riferimento"},
+                "budget_mensile": {"type": "string", "description": "Budget mensile disponibile"},
+                "obiettivo_principale": {"type": "string", "description": "Obiettivo principale attuale"},
+                "preferenze": {"type": "string", "description": "Preferenze varie (margine, stile comunicazione, ecc.)"},
+                "note_personali": {"type": "string", "description": "Note libere sull'utente"},
+            },
         },
     },
     # ==========================================
@@ -596,12 +919,13 @@ TOOLS = [
 # ==========================================
 
 async def esegui_tool(name: str, input_dict: dict) -> dict:
-    """Esegue un tool con timeout di 60 secondi."""
+    """Esegue un tool con timeout più lungo per browser e Playwright."""
     try:
         coro = _dispatch_tool(name, input_dict)
-        return await asyncio.wait_for(coro, timeout=60)
+        timeout = 180 if name in {"naviga_web", "accedi_portale_b2b", "cerca_catalogo", "cerca_tutti_cataloghi", "estrai_dati_con_playwright"} else 60
+        return await asyncio.wait_for(coro, timeout=timeout)
     except asyncio.TimeoutError:
-        return {"errore": f"Tool '{name}' ha superato il timeout di 60 secondi"}
+        return {"errore": f"Tool '{name}' ha superato il timeout di {timeout} secondi"}
     except BaseException as e:
         return {"errore": f"Errore esecuzione {name}: {str(e)}"}
 
@@ -638,6 +962,10 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return await cerca_tutti_cataloghi(**input_dict)
     elif name == "cerca_catalogo":
         return await cerca_catalogo(**input_dict)
+    elif name == "analizza_struttura_pagina":
+        return await analizza_struttura_pagina(**input_dict)
+    elif name == "estrai_dati_con_playwright":
+        return await estrai_dati_con_playwright(**input_dict)
     elif name == "calcola_prezzo_vendita":
         return calcola_prezzo_vendita(**input_dict)
     elif name == "scorporo_iva":
@@ -646,6 +974,38 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return esporta_csv(**input_dict)
     elif name == "lista_csv_salvati":
         return lista_csv_salvati()
+    elif name == "leggi_csv":
+        return leggi_csv(**input_dict)
+    elif name == "modifica_csv":
+        return modifica_csv(**input_dict)
+    elif name == "aggiungi_colonna_csv":
+        return aggiungi_colonna_csv(**input_dict)
+    elif name == "modifica_csv_bulk":
+        return modifica_csv_bulk(**input_dict)
+    elif name == "cerca_prodotti_per_related_sku":
+        return await cerca_prodotti_per_related_sku(**input_dict)
+    elif name == "aggiorna_descrizioni_bulk":
+        return await aggiorna_descrizioni_bulk(**input_dict)
+    elif name == "aggiorna_prezzi_bulk":
+        return await aggiorna_prezzi_bulk(**input_dict)
+    elif name == "modifica_prodotto_completo":
+        return await modifica_prodotto_completo(**input_dict)
+    elif name == "crea_post_blog":
+        return await crea_post_blog(**input_dict)
+    elif name == "modifica_post_blog":
+        return await modifica_post_blog(**input_dict)
+    elif name == "lista_post_blog":
+        return await lista_post_blog(**input_dict)
+    elif name == "crea_categoria_blog":
+        return await crea_categoria_blog(**input_dict)
+    elif name == "lista_categorie_blog":
+        return await lista_categorie_blog(**input_dict)
+    elif name == "leggi_impostazioni_wordpress":
+        return await leggi_impostazioni_wordpress()
+    elif name == "ispeziona_struttura_blog":
+        return await ispeziona_struttura_blog()
+    elif name == "crea_struttura_blog_completa":
+        return await crea_struttura_blog_completa(**input_dict)
     elif name == "leggi_knowledge":
         return leggi_knowledge(**input_dict)
     elif name == "aggiorna_knowledge":
@@ -662,6 +1022,8 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return cerca_in_memoria(**input_dict)
     elif name == "salva_nota":
         return salva_nota(**input_dict)
+    elif name == "aggiorna_profilo":
+        return aggiorna_profilo(**input_dict)
     elif name == "crea_obiettivo":
         return crea_obiettivo(**input_dict)
     elif name == "aggiungi_task":
@@ -705,8 +1067,49 @@ async def chat(
     if cronologia is None:
         cronologia = []
 
+    # Estrae già dal messaggio corrente sito, stack tecnico e preferenze operative.
+    auto_aggiorna_profilo_da_testo(messaggio)
+
+    # Data e ora corrente
+    _now = datetime.now()
+    _data_ora = _now.strftime("%A %d %B %Y, ore %H:%M")
+    _giorno_settimana = _now.strftime("%A")
+
     # Carica contesto persistente dalla memoria
     contesto = carica_contesto_agente()
+
+    # Carica profilo utente
+    from tools.memoria import carica_profilo
+    _profilo = carica_profilo()
+    _profilo_str = ""
+    if _profilo:
+        righe_p = []
+        for k, v in _profilo.items():
+            if v:  # skip campi vuoti
+                righe_p.append(f"- {k}: {v}")
+        _profilo_str = "\n".join(righe_p) if righe_p else "Profilo vuoto — chiedi all'utente di presentarsi."
+    else:
+        _profilo_str = "Profilo vuoto — chiedi all'utente di presentarsi."
+
+    # Carica indice CSV disponibili
+    from tools.csv_export import lista_csv_salvati
+    _csv_index = lista_csv_salvati()
+    _csv_list = _csv_index.get("csv", [])
+    if _csv_list:
+        _csv_str = "\n".join(f"- {c['file']}: {c.get('descrizione', '')} ({c.get('righe', '?')} righe, {c.get('data', '')[:10]})" for c in _csv_list[-10:])
+    else:
+        _csv_str = "Nessun CSV esportato ancora."
+
+    # Carica riepiloghi sessioni precedenti
+    from tools.memoria import carica_ultimi_riepiloghi
+    _riepiloghi = carica_ultimi_riepiloghi(3)
+    if _riepiloghi:
+        _riep_str = "\n".join(
+            f"- {r.get('data', '')[:16]}: {r.get('riepilogo', '')[:200]}"
+            for r in _riepiloghi
+        )
+    else:
+        _riep_str = "Nessuna sessione precedente registrata."
 
     # Carica obiettivi attivi per iniettarli nel system prompt
     from tools.obiettivi import lista_obiettivi, priorita_oggi
@@ -741,14 +1144,84 @@ async def chat(
 
     # Carica knowledge files critici automaticamente
     _know_critico = ""
-    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md", "agente-motivazione.md"):
+    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md", "agente-motivazione.md", "workflow-agente-completo.md", "ricambi.md", "prompt-engineering-basi.md"):
         r = leggi_knowledge(fname)
         if "contenuto" in r:
             _know_critico += f"\n\n--- {fname} ---\n{r['contenuto']}"
 
-    # Lista di tutti i knowledge file disponibili
+    # Lista di tutti i knowledge file disponibili CON INDICE CATEGORIZZATO
     _know_lista = lista_knowledge()
     _know_files = ", ".join(_know_lista.get("files", [])) or "nessuno"
+
+    # Mappa argomento → file knowledge per guidare l'agente
+    _know_indice = """
+INDICE KNOWLEDGE PER ARGOMENTO (usa leggi_knowledge per leggere):
+
+SEO:
+  - seo.md, seo-fondamenti.md, seo-keyword-research.md, seo-on-page.md, seo-tecnico.md
+  - seo-ecommerce.md, seo-ricambi-auto.md, local-seo.md, link-building.md
+
+GOOGLE ADS:
+  - google-ads-search.md, google-ads-shopping.md, google-ads-display.md
+  - google-ads-youtube.md, google-ads-remarketing.md, google-ads-performance-max.md
+  - google-ads-bid-strategy.md, google-ads-quality-score.md
+
+META ADS (Facebook/Instagram):
+  - meta-ads-fondamenti.md, meta-ads-targeting.md, meta-ads-creativita.md
+  - meta-ads-budget.md, meta-ads-retargeting.md
+
+EMAIL MARKETING:
+  - email-marketing-fondamenti.md, email-marketing-copywriting.md
+  - email-marketing-automation.md, email-marketing-segmentazione.md
+
+ECOMMERCE:
+  - ecommerce-strategia.md, ecommerce-funnel.md, ecommerce-pricing.md
+  - ecommerce-retention.md, marketplace-amazon.md
+
+CRO (Conversioni):
+  - cro-fondamenti.md, cro-ab-testing.md, cro-ecommerce.md
+
+COPYWRITING:
+  - copywriting-fondamenti.md, copywriting-ads.md, descrizioni-prodotto.md
+
+CONTENT MARKETING:
+  - content-marketing-strategia.md, content-marketing-blog.md
+
+SOCIAL MEDIA:
+  - social-media-strategia.md, social-media-instagram.md
+  - social-media-tiktok.md, social-media-youtube.md
+
+ANALYTICS:
+  - analytics-ga4.md, analytics-kpi.md, analytics-attribuzione.md
+
+MARKETING AUTOMATION:
+  - marketing-automation-fondamenti.md, marketing-automation-crm.md
+
+RICAMBI AUTO & OPERATIVO AGENTE:
+  - ricambi.md (info settore ricambi auto)
+  - plugin-compatibilita.md (plugin compatibilità veicoli WooCommerce)
+  - oem-cross-reference.md (codici OEM, cross-reference, come trovarli e usarli)
+  - csv-workflow.md (lavorare con CSV: struttura, import/export, modifiche)
+  - aggiornamento-prezzi-b2b.md (workflow prezzi da portali B2B, ricarichi, margini)
+  - woocommerce-api-tips.md (tips WooCommerce REST API, meta_data, batch, errori)
+  - blog-seo-ricambi.md (scrivere articoli blog SEO per ricambi auto)
+  - workflow-agente-completo.md (guida operativa completa: tutti i workflow step-by-step)
+  - azcar-import.md (navigazione portale AZ Car)
+
+SVILUPPO WEB & DEBUG:
+    - html-css-basi.md (HTML e CSS base)
+    - javascript-basi.md (DOM, eventi, fetch, render UI)
+    - responsive-mobile.md (responsive mobile-first per smartphone)
+    - debug-frontend-wordpress.md (debug frontend, fetch, DOM, WordPress, blog archive)
+    - scraping-web-strategie.md (quando usare browser-use e quando passare a Playwright)
+    - prompt-engineering-basi.md (interpretazione richieste, contesto, assunzioni, azione)
+
+ALTRO:
+  - influencer-marketing.md, affiliate-marketing.md
+  - economia-macro-micro.md, economia-imprese.md, gestione-impresa.md
+  - legge-dipendenti-italia.md
+  - ads.md (advertising generale)
+"""
 
     system_prompt = f"""Sei un agente AI autonomo, esperto e motivato. Puoi fare qualsiasi \
 cosa: navigare il web, gestire sistemi, scrivere codice, analizzare dati, risolvere problemi \
@@ -788,10 +1261,20 @@ NON chiederle mai all'utente, usa direttamente il tool accedi_portale_b2b.
 === KNOWLEDGE BASE (procedure operative) ==={_know_critico}
 ==========================================
 
-=== ALTRI KNOWLEDGE DISPONIBILI ===
-Usa leggi_knowledge(nome_file) per leggere questi file prima di agire su argomenti correlati:
-{_know_files}
-====================================
+=== REGOLA CRITICA: CONSULTA SEMPRE I KNOWLEDGE ===
+PRIMA di rispondere su qualsiasi argomento per cui esiste un file knowledge, DEVI:
+1. Guardare l'indice sotto per trovare i file rilevanti
+2. Chiamare leggi_knowledge(nome_file) per ognuno
+3. Solo DOPO aver letto i file, formulare la risposta
+
+NON rispondere MAI basandoti solo sulle tue conoscenze generali quando hai un file specifico.
+Se l'utente chiede di SEO → leggi i file SEO. Se chiede di Google Ads → leggi i file Google Ads.
+Se chiede di ricambi → leggi ricambi.md. E così via.
+
+{_know_indice}
+
+File disponibili: {_know_files}
+====================================================
 
 === GAMIFICATION (sistema ricompensa) ===
 {_gam_str}
@@ -805,17 +1288,37 @@ Ogni azione che esegui deve avvicinarci a uno di essi.
 Se l'utente chiede qualcosa di non collegato, fallo ma ricordagli il focus principale.
 ==================================================
 
+=== DATA E ORA CORRENTE ===
+{_data_ora} ({_giorno_settimana})
+===========================
+
+=== PROFILO UTENTE ===
+{_profilo_str}
+Se il profilo è vuoto o incompleto, chiedi all'utente le info base (nome, attività, budget)
+e salvale con aggiorna_profilo.
+======================
+
+=== CSV ESPORTATI (ultimi 10) ===
+{_csv_str}
+Usa lista_csv_salvati() per la lista completa.
+=================================
+
 === CONTESTO (memoria sessioni precedenti) ===
 {contesto}
 ==============================================
 
+=== SESSIONI PRECEDENTI (riepiloghi) ===
+{_riep_str}
+=========================================
+
 Hai accesso a tool per:
 - Navigare e interagire con qualsiasi sito web (naviga_web, accedi_portale_b2b)
+- Analizzare struttura HTML e fare scraping strutturato con Playwright
 - Gestire un sito WordPress/WooCommerce (prodotti, categorie, pagine)
 - Cercare su cataloghi B2B e portali fornitore
 - Calcolare prezzi, esportare CSV
 - Leggere knowledge base di riferimento (leggi_knowledge)
-- Salvare memoria e contesto tra sessioni
+- Salvare memoria, contesto e profilo utente tra sessioni
 
 Quando ricevi un task complesso:
 1. ANALIZZA: capisci il problema a fondo — cosa serve esattamente? Cosa potrebbe andare storto?
@@ -826,6 +1329,60 @@ Quando ricevi un task complesso:
 
 Per task semplici rispondi direttamente senza pianificazione.
 Se qualcosa non funziona, diagnostica prima di cambiare approccio.
+
+=== PROTOCOLLO DI INTERPRETAZIONE UTENTE ===
+
+Ogni messaggio dell'utente va interpretato prima di essere eseguito.
+Non limitarti alla frase letterale: usa il contesto della sessione, la memoria,
+il profilo utente, i task attivi e i knowledge file per capire il significato reale.
+
+Prima di agire, ricava mentalmente:
+1. Obiettivo reale dell'utente
+2. Contesto già disponibile
+3. Vincoli e preferenze implicite o esplicite
+4. Dati davvero mancanti
+5. Miglior azione possibile adesso
+
+REGOLE:
+- Se la richiesta è breve ma il contesto è sufficiente, interpreta e procedi.
+- Se manca solo un dettaglio secondario, fai un'assunzione ragionevole e dichiarala brevemente.
+- Se l'ambiguità rischia di produrre lavoro sbagliato, fai una sola domanda mirata.
+- Evita di chiedere cose già presenti in memoria o nel contesto.
+- Quando l'utente scrive in modo informale o ellittico, collegati sempre agli ultimi task attivi.
+
+Quando utile, esplicita in una frase l'interpretazione che stai usando, poi esegui.
+Esempio: "Interpreto questa richiesta come un miglioramento frontend mobile-first, quindi procedo su layout e responsive."
+
+Per richieste su frontend, interfacce o modifiche UI, leggi sempre:
+- html-css-basi.md
+- javascript-basi.md
+- responsive-mobile.md
+- debug-frontend-wordpress.md
+
+Per scraping web e raccolta dati da pagine:
+- se il sito è sconosciuto o interattivo, esplora prima con naviga_web
+- poi usa analizza_struttura_pagina per trovare selettori candidati
+- se serve estrazione precisa o ripetibile, passa a estrai_dati_con_playwright
+- consulta scraping-web-strategie.md
+
+Per richieste ambigue o implicite, consulta anche:
+- prompt-engineering-basi.md
+================================================
+
+=== AUTO-MEMORIA (salva fatti importanti automaticamente) ===
+
+Quando durante la conversazione l'utente rivela informazioni importanti, SALVALE SUBITO
+senza chiedere conferma. Non aspettare che te lo chieda. Esempi:
+
+- L'utente dice il suo nome o parla della sua attività → aggiorna_profilo(nome=..., attivita=...)
+- L'utente comunica un budget o una preferenza → aggiorna_profilo(budget_mensile=..., preferenze=...)
+- Se dal messaggio emergono stack tecnico, sito, CMS, WooCommerce, HTML/CSS/JS, esigenze mobile o preferenze operative → aggiorna_profilo(stack_tecnico=..., preferenze_tecniche=..., sito_web=...)
+- Viene presa una decisione sul sito (margine, struttura, ecc.) → aggiorna_contesto_sito(chiave, valore)
+- Trovi un'informazione utile durante una ricerca → salva_nota(titolo, contenuto)
+- Crei un prodotto su WooCommerce → il tracciamento è automatico, non devi fare nulla
+
+Regola d'oro: se un'informazione potrebbe servire nella prossima sessione, salvala ORA.
+=============================================================
 
 === OBIETTIVI & TASK MANAGER (supporto ADHD) ===
 

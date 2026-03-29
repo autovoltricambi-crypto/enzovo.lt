@@ -1,6 +1,7 @@
 """Memoria persistente in JSON per ricerche, prodotti e note."""
 import json
 import os
+import re
 from datetime import datetime
 from config import Config
 
@@ -269,3 +270,252 @@ def statistiche_memoria() -> dict:
         "file": Config.MEMORIA_PATH,
         "esiste": os.path.exists(Config.MEMORIA_PATH),
     }
+
+
+# ==========================================
+# PROFILO UTENTE
+# ==========================================
+
+PROFILO_PATH = os.path.join(Config.DATA_DIR, "profilo.json")
+
+_PROFILO_DEFAULT = {
+    "nome": "",
+    "attivita": "",
+    "settore": "",
+    "sito_web": "",
+    "indirizzo": "",
+    "citta": "",
+    "stack_tecnico": "",
+    "preferenze_tecniche": "",
+    "budget_mensile": "",
+    "obiettivo_principale": "",
+    "preferenze": "",
+    "note_personali": "",
+}
+
+
+def carica_profilo() -> dict:
+    """Carica il profilo utente da disco. Crea il file con valori vuoti se non esiste."""
+    if not os.path.exists(PROFILO_PATH):
+        return dict(_PROFILO_DEFAULT)
+    try:
+        with open(PROFILO_PATH, encoding="utf-8") as f:
+            profilo = json.load(f)
+        # Merge con default per campi nuovi
+        merged = dict(_PROFILO_DEFAULT)
+        merged.update(profilo)
+        return merged
+    except Exception:
+        return dict(_PROFILO_DEFAULT)
+
+
+def aggiorna_profilo(**kwargs) -> dict:
+    """
+    Aggiorna uno o più campi del profilo utente.
+    Accetta qualsiasi chiave — i campi standard sono:
+    nome, attivita, settore, budget_mensile, obiettivo_principale, preferenze, note_personali.
+    Puoi aggiungere campi custom.
+    """
+    profilo = carica_profilo()
+    campi_aggiornati = []
+    for chiave, valore in kwargs.items():
+        if valore is not None and str(valore).strip():
+            profilo[chiave] = str(valore).strip()
+            campi_aggiornati.append(chiave)
+    os.makedirs(os.path.dirname(PROFILO_PATH), exist_ok=True)
+    with open(PROFILO_PATH, "w", encoding="utf-8") as f:
+        json.dump(profilo, f, ensure_ascii=False, indent=2)
+    return {"successo": True, "campi_aggiornati": campi_aggiornati, "profilo": profilo}
+
+
+def _merge_valori_unici(valore_corrente: str, nuovi_valori: list[str]) -> str:
+    """Unisce valori testuali evitando duplicati e preservando l'ordine."""
+    visti = set()
+    output = []
+
+    for raw in (valore_corrente.split(",") if valore_corrente else []):
+        item = raw.strip()
+        if item and item.lower() not in visti:
+            visti.add(item.lower())
+            output.append(item)
+
+    for raw in nuovi_valori:
+        item = str(raw).strip()
+        if item and item.lower() not in visti:
+            visti.add(item.lower())
+            output.append(item)
+
+    return ", ".join(output)
+
+
+def auto_aggiorna_profilo_da_testo(testo: str) -> dict:
+    """
+    Estrae automaticamente dal messaggio utente informazioni stabili di profilo,
+    incluse stack e preferenze tecniche emerse in chat.
+    """
+    if not testo or not testo.strip():
+        return {"successo": True, "campi_aggiornati": [], "profilo": carica_profilo()}
+
+    originale = testo.strip()
+    lower = originale.lower()
+    profilo = carica_profilo()
+    updates = {}
+
+    if any(k in lower for k in ("mio sito", "nostro sito", "il sito si chiama", "sito si chiama", "negozio", "azienda")):
+        match_sito = re.search(r"(https?://[^\s,;]+|(?:[a-z0-9-]+\.)+[a-z]{2,})", originale, re.IGNORECASE)
+        if match_sito:
+            sito = match_sito.group(1).rstrip(".,;)")
+            if not sito.startswith(("http://", "https://")):
+                sito = f"https://{sito}"
+            updates["sito_web"] = sito
+
+    match_citta = re.search(r"\bsi trova a\s+([A-Za-zÀ-ÿ'\- ]+?)\s+in\s+(via|viale|piazza|corso)\b", originale, re.IGNORECASE)
+    if match_citta:
+        updates["citta"] = match_citta.group(1).strip().title()
+
+    match_indirizzo = re.search(
+        r"\b(via|viale|piazza|corso)\s+[A-Za-zÀ-ÿ0-9'\.\-\s]+?\s+\d+[A-Za-z0-9/\-]*",
+        originale,
+        re.IGNORECASE,
+    )
+    if match_indirizzo:
+        indirizzo = re.sub(r"\s+", " ", match_indirizzo.group(0).strip())
+        parts = indirizzo.split(" ")
+        if parts:
+            parts[0] = parts[0].capitalize()
+        updates["indirizzo"] = " ".join(parts)
+
+    stack_map = {
+        r"\bwordpress\b": "WordPress",
+        r"\bwoocommerce\b": "WooCommerce",
+        r"\belementor\b": "Elementor",
+        r"\bhtml\b": "HTML",
+        r"\bcss\b": "CSS",
+        r"\bjavascript\b|\bjs\b": "JavaScript",
+        r"\bphp\b": "PHP",
+        r"\bpython\b": "Python",
+        r"\bfastapi\b": "FastAPI",
+        r"\bbrowser-use\b": "browser-use",
+        r"\bplaywright\b": "Playwright",
+    }
+    stack_nuovo = []
+    for pattern, label in stack_map.items():
+        if re.search(pattern, lower, re.IGNORECASE):
+            stack_nuovo.append(label)
+    if stack_nuovo:
+        updates["stack_tecnico"] = _merge_valori_unici(profilo.get("stack_tecnico", ""), stack_nuovo)
+
+    preferenze_nuove = []
+    if any(k in lower for k in ("responsive", "cellulare", "smartphone", "mobile-first", "mobile first")):
+        preferenze_nuove.append("responsive mobile-first")
+    if any(k in lower for k in ("headless false", "browser visibile", "vedere il browser")):
+        preferenze_nuove.append("browser visibile per debug")
+    if any(k in lower for k in ("draft", "bozza prima", "prima in bozza")):
+        preferenze_nuove.append("pubblicazione in draft prima del publish")
+    if any(k in lower for k in ("categorie blog", "categoria blog", "archivio blog", "pagina blog")):
+        preferenze_nuove.append("blog organizzato per categorie")
+    if preferenze_nuove:
+        updates["preferenze_tecniche"] = _merge_valori_unici(profilo.get("preferenze_tecniche", ""), preferenze_nuove)
+
+    if not updates:
+        return {"successo": True, "campi_aggiornati": [], "profilo": profilo}
+
+    return aggiorna_profilo(**updates)
+
+
+# ==========================================
+# TRACCIAMENTO PRODOTTI
+# ==========================================
+
+def salva_prodotto_in_memoria(prodotto: dict) -> dict:
+    """
+    Salva un prodotto nella memoria locale quando viene creato su WooCommerce.
+    Chiamata automaticamente dopo crea_prodotto e importa_prodotti_bulk.
+    """
+    memoria = _carica()
+    if "prodotti" not in memoria:
+        memoria["prodotti"] = []
+    memoria["prodotti"].append({
+        **prodotto,
+        "data_creazione": datetime.now().isoformat(),
+    })
+    _salva(memoria)
+    return {"successo": True, "prodotti_in_memoria": len(memoria["prodotti"])}
+
+
+# ==========================================
+# RIEPILOGO SESSIONE
+# ==========================================
+
+SESSIONI_DIR = os.path.join(Config.DATA_DIR, "sessioni")
+
+
+def salva_riepilogo_sessione(session_id: str, messaggi_utente: int, messaggi_agente: int, riepilogo: str) -> dict:
+    """
+    Salva un riepilogo della sessione su disco.
+    Chiamata quando l'utente resetta la chat o il server si spegne.
+    """
+    os.makedirs(SESSIONI_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome_file = f"{session_id}_{timestamp}.json"
+    percorso = os.path.join(SESSIONI_DIR, nome_file)
+
+    sessione = {
+        "session_id": session_id,
+        "data": datetime.now().isoformat(),
+        "messaggi_utente": messaggi_utente,
+        "messaggi_agente": messaggi_agente,
+        "riepilogo": riepilogo,
+    }
+
+    with open(percorso, "w", encoding="utf-8") as f:
+        json.dump(sessione, f, ensure_ascii=False, indent=2)
+
+    return {"successo": True, "file": nome_file}
+
+
+def carica_ultimi_riepiloghi(n: int = 3) -> list:
+    """Carica gli ultimi N riepiloghi di sessione per iniettarli nel contesto."""
+    if not os.path.exists(SESSIONI_DIR):
+        return []
+    files = sorted(
+        [f for f in os.listdir(SESSIONI_DIR) if f.endswith(".json")],
+        reverse=True,
+    )[:n]
+    riepiloghi = []
+    for f in files:
+        try:
+            with open(os.path.join(SESSIONI_DIR, f), encoding="utf-8") as fh:
+                riepiloghi.append(json.load(fh))
+        except Exception:
+            continue
+    return riepiloghi
+
+
+# ==========================================
+# CONVERSAZIONI PERSISTENTI
+# ==========================================
+
+CONVERSAZIONI_DIR = os.path.join(Config.DATA_DIR, "conversazioni")
+
+
+def salva_conversazione(session_id: str, cronologia: list) -> None:
+    """Salva la cronologia di una conversazione su disco."""
+    if not cronologia:
+        return
+    os.makedirs(CONVERSAZIONI_DIR, exist_ok=True)
+    percorso = os.path.join(CONVERSAZIONI_DIR, f"{session_id}.json")
+    with open(percorso, "w", encoding="utf-8") as f:
+        json.dump(cronologia, f, ensure_ascii=False)
+
+
+def carica_conversazione(session_id: str) -> list:
+    """Carica una conversazione da disco. Ritorna lista vuota se non esiste."""
+    percorso = os.path.join(CONVERSAZIONI_DIR, f"{session_id}.json")
+    if not os.path.exists(percorso):
+        return []
+    try:
+        with open(percorso, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []

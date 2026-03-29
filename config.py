@@ -55,6 +55,12 @@ class Config:
     # Browser-use: False = mostra il browser (utile per debug), True = invisibile
     BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
 
+    # Catena modelli per browser-use: parte da Haiku, poi Sonnet piu economico,
+    # poi Sonnet 4.5 come fallback finale.
+    BROWSER_MODEL_PRIMARY = os.getenv("BROWSER_MODEL_PRIMARY", "claude-haiku-4-5")
+    BROWSER_MODEL_SECONDARY = os.getenv("BROWSER_MODEL_SECONDARY", "claude-sonnet-4-0")
+    BROWSER_MODEL_FALLBACK = os.getenv("BROWSER_MODEL_FALLBACK", "claude-sonnet-4-5")
+
     # Profilo Chrome reale (opzionale)
     # Mac:     ~/Library/Application Support/Google/Chrome
     # Windows: C:\Users\TUO_NOME\AppData\Local\Google\Chrome\User Data

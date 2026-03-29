@@ -14,6 +14,65 @@ CATALOGHI = {
 }
 
 
+def _browser_model_chain() -> list[str]:
+    """Ritorna la catena modelli browser-use senza duplicati."""
+    chain = []
+    for model in (
+        Config.BROWSER_MODEL_PRIMARY,
+        Config.BROWSER_MODEL_SECONDARY,
+        Config.BROWSER_MODEL_FALLBACK,
+    ):
+        model = (model or "").strip()
+        if model and model not in chain:
+            chain.append(model)
+    return chain
+
+
+async def _run_browser_agent_with_fallback(task: str, max_steps: int) -> dict:
+    """Esegue browser-use provando piu modelli in ordine di fallback."""
+    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
+
+    profile = BrowserProfile(
+        headless=Config.BROWSER_HEADLESS,
+        wait_for_network_idle_page_load_time=5,
+        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
+           if Config.CHROME_USER_DATA_DIR else {}),
+    )
+
+    tentativi = []
+    ultimo_errore = None
+
+    for model_name in _browser_model_chain():
+        llm_kwargs = {"model": model_name, "api_key": Config.ANTHROPIC_API_KEY}
+        if "haiku" not in model_name:
+            llm_kwargs["model_kwargs"] = {"thinking": {"type": "disabled"}}
+
+        llm = ChatAnthropic(**llm_kwargs)
+        agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=profile))
+
+        try:
+            history = await agent.run(max_steps=max_steps)
+            try:
+                result = history.final_result()
+            except Exception:
+                result = None
+            return {
+                "successo": True,
+                "modello_usato": model_name,
+                "risultato": result or "Navigazione completata. Nessun risultato finale estratto.",
+                "tentativi": tentativi,
+            }
+        except Exception as e:
+            ultimo_errore = str(e)
+            tentativi.append({"modello": model_name, "errore": str(e)})
+
+    return {
+        "successo": False,
+        "errore": ultimo_errore or "Browser-use fallito senza dettagli.",
+        "tentativi": tentativi,
+    }
+
+
 # ==========================================
 # BROWSER / SESSIONE WORDPRESS
 # ==========================================
@@ -65,16 +124,9 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
     Cerca un prodotto su un catalogo B2B usando browser-use.
     browser-use naviga il sito con un browser reale e Claude estrae i dati.
     """
-    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
-
     url = CATALOGHI.get(catalogo)
     if not url:
         return {"errore": f"Catalogo '{catalogo}' non supportato. Scegli tra: {list(CATALOGHI.keys())}"}
-
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-5",
-        api_key=Config.ANTHROPIC_API_KEY,
-    )
 
     task = (
         f"Vai su {url} e cerca il prodotto: '{query}'. "
@@ -83,35 +135,22 @@ async def cerca_catalogo(catalogo: str, query: str) -> dict:
         "Restituisci i risultati come lista JSON con campi: titolo, codice, prezzo."
     )
 
-    profile = BrowserProfile(
-        headless=Config.BROWSER_HEADLESS,
-        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
-           if Config.CHROME_USER_DATA_DIR else {}),
-    )
-    agent = Agent(task=task, llm=llm, browser=Browser(browser_profile=profile))
-
-    try:
-        history = await agent.run(max_steps=20)
-    except Exception as e:
+    run = await _run_browser_agent_with_fallback(task=task, max_steps=20)
+    if not run.get("successo"):
         return {
             "catalogo": catalogo,
             "query": query,
-            "errore": str(e),
+            "errore": run.get("errore"),
+            "tentativi": run.get("tentativi", []),
             "successo": False,
         }
-
-    try:
-        result = history.final_result()
-    except Exception:
-        result = None
-
-    if result is None:
-        result = "Ricerca completata. Nessun risultato finale estratto."
 
     return {
         "catalogo": catalogo,
         "query": query,
-        "risultati": str(result),
+        "risultati": str(run.get("risultato")),
+        "modello_usato": run.get("modello_usato"),
+        "tentativi": run.get("tentativi", []),
         "successo": True,
     }
 
@@ -124,8 +163,6 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     portale: chiave del portale (es: 'azcar', 'elring', 'corteco', 'valeo', 'autodoc')
     obiettivo: cosa fare dopo il login (es: 'cerca filtri olio BMW Serie 3 e restituisci prezzi')
     """
-    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
-
     portale_key = portale.lower().replace(" ", "")
     info = Config.PORTALI_B2B.get(portale_key)
 
@@ -150,40 +187,20 @@ async def accedi_portale_b2b(portale: str, obiettivo: str) -> dict:
     task_parts.append(obiettivo)
     task_parts.append("Rispondi in italiano con i dati trovati.")
 
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-5",
-        api_key=Config.ANTHROPIC_API_KEY,
-        model_kwargs={"thinking": {"type": "disabled"}},
-    )
-
-    profile = BrowserProfile(
-        headless=Config.BROWSER_HEADLESS,
-        wait_for_network_idle_page_load_time=5,
-        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
-           if Config.CHROME_USER_DATA_DIR else {}),
-    )
-    agent = Agent(task=" ".join(task_parts), llm=llm, browser=Browser(browser_profile=profile))
-
-    try:
-        history = await agent.run(max_steps=30)
-    except Exception as e:
+    run = await _run_browser_agent_with_fallback(task=" ".join(task_parts), max_steps=30)
+    if not run.get("successo"):
         return {
             "portale": info["nome"],
-            "errore": str(e),
+            "errore": run.get("errore"),
+            "tentativi": run.get("tentativi", []),
             "successo": False,
         }
 
-    try:
-        result = history.final_result()
-    except Exception:
-        result = None
-
-    if result is None:
-        result = "Navigazione completata. Nessun risultato finale estratto."
-
     return {
         "portale": info["nome"],
-        "risultato": str(result),
+        "risultato": str(run.get("risultato")),
+        "modello_usato": run.get("modello_usato"),
+        "tentativi": run.get("tentativi", []),
         "successo": True,
     }
 
@@ -197,40 +214,18 @@ async def naviga_web(url: str, obiettivo: str) -> dict:
       naviga_web("https://www.autodoc.it", "Elenca le categorie principali del sito")
       naviga_web("https://www.elring.de/it", "Trova i prodotti per BMW N47 con prezzi")
     """
-    from browser_use import Agent, Browser, BrowserProfile, ChatAnthropic
-
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-5",
-        api_key=Config.ANTHROPIC_API_KEY,
-    )
-
-    profile = BrowserProfile(
-        headless=Config.BROWSER_HEADLESS,
-        **({"user_data_dir": Config.CHROME_USER_DATA_DIR, "profile_directory": Config.CHROME_PROFILE}
-           if Config.CHROME_USER_DATA_DIR else {}),
-    )
-    agent = Agent(
+    run = await _run_browser_agent_with_fallback(
         task=f"Vai su {url}. {obiettivo} Rispondi in italiano con i dati trovati.",
-        llm=llm,
-        browser=Browser(browser_profile=profile),
+        max_steps=25,
     )
-
-    try:
-        history = await agent.run(max_steps=25)
-    except Exception as e:
-        return {"url": url, "errore": str(e), "successo": False}
-
-    try:
-        result = history.final_result()
-    except Exception:
-        result = None
-
-    if result is None:
-        result = "Navigazione completata. Nessun risultato finale estratto."
+    if not run.get("successo"):
+        return {"url": url, "errore": run.get("errore"), "tentativi": run.get("tentativi", []), "successo": False}
 
     return {
         "url": url,
-        "risultato": str(result),
+        "risultato": str(run.get("risultato")),
+        "modello_usato": run.get("modello_usato"),
+        "tentativi": run.get("tentativi", []),
         "successo": True,
     }
 
