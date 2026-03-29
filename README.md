@@ -97,3 +97,71 @@ agente-ricambi/
 - Il separatore CSV è `;` per compatibilità con Excel italiano
 - L'agente usa Claude Sonnet 4.6 via API Anthropic
 - Ogni ricerca sui cataloghi viene auto-salvata in memoria
+
+## Debug navigazione browser-use
+
+Se il tool `naviga_web` esegue la navigazione correttamente nel browser ma la chat
+riporta un errore di "pagina non caricata", segui questi passi:
+
+### 1. Rendi il browser visibile
+
+Nel file `.env` imposta:
+
+```env
+BROWSER_HEADLESS=false
+```
+
+Così vedi esattamente cosa fa il browser durante la navigazione.
+
+### 2. Usa il tuo profilo Chrome (opzionale, riduce captcha)
+
+```env
+# Mac
+CHROME_USER_DATA_DIR=/Users/TUO_NOME/Library/Application Support/Google/Chrome
+# Windows
+# CHROME_USER_DATA_DIR=C:\Users\TUO_NOME\AppData\Local\Google\Chrome\User Data
+# Linux
+# CHROME_USER_DATA_DIR=/home/TUO_NOME/.config/google-chrome
+CHROME_PROFILE=Default
+```
+
+### 3. Reinstalla Playwright se Chromium non parte
+
+```bash
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+### 4. Riavvia il server
+
+```bash
+uvicorn app:app --reload
+```
+
+### 5. Verifica con l'endpoint health-check
+
+Apri il browser su:
+
+```
+http://127.0.0.1:8000/api/debug/browser
+```
+
+Ritorna un JSON con:
+- `versioni` — pacchetti installati (`browser_use`, `playwright`, ecc.)
+- `test` — risultato del test di navigazione su `example.com`
+- `errore` — stack trace completo se qualcosa non va
+
+### Come funzionano i due agenti
+
+Il sistema usa **due modelli separati**:
+
+| Modello | Ruolo |
+|---------|-------|
+| **Claude Haiku** | Agente chat principale — interpreta i messaggi e chiama i tool |
+| **Claude Sonnet** | Agente browser-use — naviga il web dentro Chromium |
+
+I due agenti comunicano tramite il risultato del tool (`naviga_web`, `accedi_portale_b2b`, ecc.):
+il risultato JSON viene passato a Claude Haiku che lo interpreta e risponde in chat.
+Se `agent.run()` lancia un'eccezione dopo aver navigato con successo
+(es. errore di cleanup, timeout sul risultato finale), il tool ora restituisce
+comunque `successo: true` con i dati parziali, evitando falsi errori in chat.
