@@ -27,7 +27,7 @@ L'agente deve usare i tool memoria per non perdere informazioni tra sessioni.
 Proprietà contatto HubSpot consigliate:
 - `firstname` / `lastname` oppure `name`
 - `phone` (numero WhatsApp)
-- `car_models` (testo multi-valore)
+- `car_models` (proprietà custom da creare, tipo testo multi-valore)
 - `last_purchase_note`
 - `last_quote_status`
 
