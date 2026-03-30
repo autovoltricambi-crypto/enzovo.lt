@@ -38,6 +38,12 @@ from tools.memoria import (
     salva_ricerca,
     cerca_in_memoria,
     salva_nota,
+    salva_cliente_locale,
+    aggiorna_acquisto_cliente,
+    registra_preventivo,
+    lista_clienti_locali,
+    lista_preventivi,
+    scheda_cliente,
     aggiorna_contesto_sito,
     leggi_contesto_sito,
     carica_contesto_agente,
@@ -464,6 +470,88 @@ TOOLS = [
             "required": ["titolo", "contenuto"],
         },
     },
+    {
+        "name": "salva_cliente_locale",
+        "description": (
+            "Crea o aggiorna una scheda cliente locale con numero WhatsApp, auto possedute, "
+            "storico acquisti e note vendite."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string"},
+                "whatsapp": {"type": "string"},
+                "auto": {"type": "array", "items": {"type": "string"}},
+                "acquisti": {"type": "array", "items": {"type": "object"}},
+                "note": {"type": "string"},
+            },
+            "required": ["nome", "whatsapp"],
+        },
+    },
+    {
+        "name": "aggiorna_acquisto_cliente",
+        "description": "Aggiunge un nuovo acquisto allo storico di un cliente locale.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "whatsapp": {"type": "string"},
+                "descrizione_acquisto": {"type": "string"},
+                "auto": {"type": "string"},
+                "importo": {"type": "number"},
+            },
+            "required": ["whatsapp", "descrizione_acquisto"],
+        },
+    },
+    {
+        "name": "registra_preventivo",
+        "description": (
+            "Registra un preventivo (bozza/inviato/accettato/rifiutato) associandolo al cliente "
+            "tramite WhatsApp."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "whatsapp": {"type": "string"},
+                "descrizione": {"type": "string"},
+                "auto": {"type": "string"},
+                "importo": {"type": "number"},
+                "stato": {"type": "string", "enum": ["bozza", "inviato", "accettato", "rifiutato"]},
+            },
+            "required": ["whatsapp", "descrizione"],
+        },
+    },
+    {
+        "name": "lista_clienti_locali",
+        "description": "Elenca le schede clienti locali, con filtro testuale opzionale.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "lista_preventivi",
+        "description": "Elenca i preventivi filtrabili per stato o numero WhatsApp cliente.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "stato": {"type": "string", "enum": ["bozza", "inviato", "accettato", "rifiutato"]},
+                "whatsapp": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "scheda_cliente",
+        "description": "Mostra scheda completa cliente (contatti, auto, acquisti, preventivi).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "whatsapp": {"type": "string"},
+            },
+            "required": ["whatsapp"],
+        },
+    },
     # ==========================================
     # OBIETTIVI & TASK MANAGER
     # ==========================================
@@ -662,6 +750,18 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return cerca_in_memoria(**input_dict)
     elif name == "salva_nota":
         return salva_nota(**input_dict)
+    elif name == "salva_cliente_locale":
+        return salva_cliente_locale(**input_dict)
+    elif name == "aggiorna_acquisto_cliente":
+        return aggiorna_acquisto_cliente(**input_dict)
+    elif name == "registra_preventivo":
+        return registra_preventivo(**input_dict)
+    elif name == "lista_clienti_locali":
+        return lista_clienti_locali(**input_dict)
+    elif name == "lista_preventivi":
+        return lista_preventivi(**input_dict)
+    elif name == "scheda_cliente":
+        return scheda_cliente(**input_dict)
     elif name == "crea_obiettivo":
         return crea_obiettivo(**input_dict)
     elif name == "aggiungi_task":
@@ -741,7 +841,13 @@ async def chat(
 
     # Carica knowledge files critici automaticamente
     _know_critico = ""
-    for fname in ("azcar-import.md", "plugin-compatibilita.md", "adhd-guida.md", "agente-motivazione.md"):
+    for fname in (
+        "azcar-import.md",
+        "plugin-compatibilita.md",
+        "adhd-guida.md",
+        "agente-motivazione.md",
+        "hubspot-vendite-locali.md",
+    ):
         r = leggi_knowledge(fname)
         if "contenuto" in r:
             _know_critico += f"\n\n--- {fname} ---\n{r['contenuto']}"
@@ -816,6 +922,7 @@ Hai accesso a tool per:
 - Calcolare prezzi, esportare CSV
 - Leggere knowledge base di riferimento (leggi_knowledge)
 - Salvare memoria e contesto tra sessioni
+- Gestire CRM vendite locali (clienti WhatsApp, auto, acquisti, preventivi)
 
 Quando ricevi un task complesso:
 1. ANALIZZA: capisci il problema a fondo — cosa serve esattamente? Cosa potrebbe andare storto?

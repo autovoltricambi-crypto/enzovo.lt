@@ -2,17 +2,30 @@
 import json
 import os
 from datetime import datetime
+from uuid import uuid4
 from config import Config
 
 
 def _carica() -> dict:
     """Carica il file memoria.json, crea struttura vuota se non esiste."""
     if not os.path.exists(Config.MEMORIA_PATH):
-        return {"ricerche": [], "prodotti": [], "note": [], "contesto_sito": {}}
+        return {
+            "ricerche": [],
+            "prodotti": [],
+            "note": [],
+            "contesto_sito": {},
+            "clienti_locali": [],
+            "preventivi": [],
+        }
     memoria = json.load(open(Config.MEMORIA_PATH, encoding="utf-8"))
     # Migrazione: aggiunge contesto_sito se mancante
     if "contesto_sito" not in memoria:
         memoria["contesto_sito"] = {}
+    # Migrazione: aggiunge CRM locale se mancante
+    if "clienti_locali" not in memoria:
+        memoria["clienti_locali"] = []
+    if "preventivi" not in memoria:
+        memoria["preventivi"] = []
     return memoria
 
 
@@ -73,6 +86,231 @@ def salva_nota(titolo: str, contenuto: str) -> dict:
     })
     _salva(memoria)
     return {"successo": True, "note_totali": len(memoria["note"])}
+
+
+def _normalizza_whatsapp(whatsapp: str) -> str:
+    """Normalizza il numero WhatsApp mantenendo solo cifre e + iniziale."""
+    value = (whatsapp or "").strip().replace(" ", "")
+    if not value:
+        return ""
+    has_plus = value.startswith("+")
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if not digits:
+        return ""
+    return f"+{digits}" if has_plus else digits
+
+
+def _solo_cifre_whatsapp(whatsapp: str) -> str:
+    """Ritorna solo le cifre del numero WhatsApp per confronti robusti."""
+    return "".join(ch for ch in (whatsapp or "") if ch.isdigit())
+
+
+def _stesso_whatsapp(a: str, b: str) -> bool:
+    """Confronta due numeri WhatsApp ignorando formattazione e +."""
+    a_digits = _solo_cifre_whatsapp(a)
+    b_digits = _solo_cifre_whatsapp(b)
+    return bool(a_digits and b_digits and a_digits == b_digits)
+
+
+def _trova_cliente_per_whatsapp(clienti: list, whatsapp: str) -> dict | None:
+    """Trova cliente tramite WhatsApp normalizzato (matching robusto)."""
+    return next((c for c in clienti if _stesso_whatsapp(c.get("whatsapp", ""), whatsapp)), None)
+
+
+def _parse_importo(importo) -> float | None:
+    """Converte importo in float con validazione."""
+    if importo is None:
+        return None
+    try:
+        return float(importo)
+    except (TypeError, ValueError):
+        return None
+
+
+def _merge_unici_ordine_corrente(valori_esistenti: list | None, nuovi_valori: list | None) -> list:
+    """Unisce due liste rimuovendo duplicati e preservando l'ordine di inserimento."""
+    merged = list(valori_esistenti or []) + list(nuovi_valori or [])
+    return list(dict.fromkeys(merged))
+
+
+def salva_cliente_locale(
+    nome: str,
+    whatsapp: str,
+    auto: list | None = None,
+    acquisti: list | None = None,
+    note: str = "",
+) -> dict:
+    """
+    Crea o aggiorna un cliente locale con contatto WhatsApp, veicoli e storico acquisti.
+    Se il numero WhatsApp esiste già, aggiorna la scheda esistente.
+    """
+    memoria = _carica()
+    nome_pulito = (nome or "").strip()
+    if not nome_pulito:
+        return {"errore": "Nome cliente obbligatorio"}
+
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    if not whatsapp_norm:
+        return {"errore": "Numero WhatsApp non valido"}
+
+    auto = [a.strip() for a in (auto or []) if str(a).strip()]
+    acquisti = [a for a in (acquisti or []) if a]
+    note_pulite = (note or "").strip()
+
+    clienti = memoria["clienti_locali"]
+    cliente = _trova_cliente_per_whatsapp(clienti, whatsapp_norm)
+
+    now = datetime.now().isoformat()
+    if cliente is None:
+        cliente = {
+            "cliente_id": str(uuid4()),
+            "nome": nome_pulito,
+            "whatsapp": whatsapp_norm,
+            "auto": auto,
+            "acquisti": acquisti,
+            "note": note_pulite,
+            "creato_il": now,
+            "aggiornato_il": now,
+        }
+        memoria["clienti_locali"].append(cliente)
+        azione = "creato"
+    else:
+        cliente["nome"] = nome_pulito
+        if note_pulite:
+            cliente["note"] = note_pulite
+        if auto:
+            cliente["auto"] = _merge_unici_ordine_corrente(cliente.get("auto"), auto)
+        if acquisti:
+            cliente["acquisti"] = (cliente.get("acquisti") or []) + acquisti
+        cliente["aggiornato_il"] = now
+        azione = "aggiornato"
+
+    _salva(memoria)
+    return {
+        "successo": True,
+        "azione": azione,
+        "cliente_id": cliente["cliente_id"],
+        "whatsapp": cliente["whatsapp"],
+    }
+
+
+def aggiorna_acquisto_cliente(
+    whatsapp: str,
+    descrizione_acquisto: str,
+    auto: str | None = None,
+    importo: float | None = None,
+) -> dict:
+    """Aggiunge uno storico acquisto alla scheda cliente (ricambi venduti localmente)."""
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    cliente = _trova_cliente_per_whatsapp(memoria["clienti_locali"], whatsapp_norm)
+    if not cliente:
+        return {"errore": f"Cliente con WhatsApp '{whatsapp}' non trovato"}
+
+    entry = {
+        "data": datetime.now().isoformat(),
+        "descrizione": descrizione_acquisto,
+    }
+    if auto:
+        entry["auto"] = auto
+        cliente["auto"] = _merge_unici_ordine_corrente(cliente.get("auto"), [auto])
+    importo_float = _parse_importo(importo)
+    if importo is not None and importo_float is None:
+        return {"errore": "Importo acquisto non valido: deve essere un numero"}
+    if importo_float is not None:
+        entry["importo"] = importo_float
+
+    cliente["acquisti"] = (cliente.get("acquisti") or []) + [entry]
+    cliente["aggiornato_il"] = datetime.now().isoformat()
+    _salva(memoria)
+    return {"successo": True, "cliente_id": cliente["cliente_id"], "acquisti_totali": len(cliente["acquisti"])}
+
+
+def registra_preventivo(
+    whatsapp: str,
+    descrizione: str,
+    auto: str | None = None,
+    importo: float | None = None,
+    stato: str = "inviato",
+) -> dict:
+    """
+    Registra un preventivo cliente.
+    Stato consigliato: bozza | inviato | accettato | rifiutato.
+    """
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    if not whatsapp_norm:
+        return {"errore": "Numero WhatsApp non valido"}
+
+    cliente = _trova_cliente_per_whatsapp(memoria["clienti_locali"], whatsapp_norm)
+    importo_float = _parse_importo(importo)
+    if importo is not None and importo_float is None:
+        return {"errore": "Importo preventivo non valido: deve essere un numero"}
+    preventivo = {
+        "preventivo_id": str(uuid4()),
+        "cliente_id": cliente.get("cliente_id") if cliente else None,
+        "whatsapp": whatsapp_norm,
+        "auto": auto,
+        "descrizione": descrizione,
+        "importo": importo_float,
+        "stato": stato,
+        "data": datetime.now().isoformat(),
+    }
+    memoria["preventivi"].append(preventivo)
+    _salva(memoria)
+    return {
+        "successo": True,
+        "preventivo_id": preventivo["preventivo_id"],
+        "cliente_collegato": bool(cliente),
+    }
+
+
+def lista_clienti_locali(query: str | None = None) -> dict:
+    """Elenca i clienti locali; query opzionale su nome/numero/auto/acquisti."""
+    memoria = _carica()
+    clienti = memoria.get("clienti_locali", [])
+    if query:
+        q = query.lower()
+        filtrati = []
+        for c in clienti:
+            campi = [
+                str(c.get("nome", "")).lower(),
+                str(c.get("whatsapp", "")).lower(),
+                str(c.get("note", "")).lower(),
+                " ".join((c.get("auto") or [])).lower(),
+            ]
+            for a in (c.get("acquisti") or []):
+                if isinstance(a, dict):
+                    campi.append(str(a.get("descrizione", "")).lower())
+                else:
+                    campi.append(str(a).lower())
+            if any(q in field for field in campi):
+                filtrati.append(c)
+        clienti = filtrati
+    return {"totale": len(clienti), "clienti": clienti}
+
+
+def lista_preventivi(stato: str | None = None, whatsapp: str | None = None) -> dict:
+    """Elenca preventivi con filtri opzionali per stato e cliente WhatsApp."""
+    memoria = _carica()
+    preventivi = memoria.get("preventivi", [])
+    if stato:
+        preventivi = [p for p in preventivi if p.get("stato") == stato]
+    if whatsapp:
+        whatsapp_norm = _normalizza_whatsapp(whatsapp)
+        preventivi = [p for p in preventivi if _stesso_whatsapp(p.get("whatsapp", ""), whatsapp_norm)]
+    return {"totale": len(preventivi), "preventivi": preventivi}
+
+
+def scheda_cliente(whatsapp: str) -> dict:
+    """Ritorna la scheda completa cliente con eventuali preventivi associati."""
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    cliente = _trova_cliente_per_whatsapp(memoria["clienti_locali"], whatsapp_norm)
+    if not cliente:
+        return {"trovato": False, "errore": f"Cliente con WhatsApp '{whatsapp}' non trovato"}
+    preventivi = [p for p in memoria.get("preventivi", []) if _stesso_whatsapp(p.get("whatsapp", ""), whatsapp_norm)]
+    return {"trovato": True, "cliente": cliente, "preventivi": preventivi}
 
 
 def aggiorna_contesto_sito(chiave: str, valore: str) -> dict:
@@ -266,6 +504,8 @@ def statistiche_memoria() -> dict:
         "ricerche": len(memoria.get("ricerche", [])),
         "prodotti": len(memoria.get("prodotti", [])),
         "note": len(memoria.get("note", [])),
+        "clienti_locali": len(memoria.get("clienti_locali", [])),
+        "preventivi": len(memoria.get("preventivi", [])),
         "file": Config.MEMORIA_PATH,
         "esiste": os.path.exists(Config.MEMORIA_PATH),
     }

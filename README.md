@@ -10,6 +10,7 @@ Assistente intelligente per ricerca ricambi auto sui cataloghi B2B, confronto pr
 - **Calcolo prezzi** — Margine (default 30%) + IVA (22%) automatici
 - **Navigazione web** — Apre e legge qualsiasi pagina web
 - **Memoria** — Ricorda ogni ricerca e prodotto. Non cerca due volte la stessa cosa.
+- **CRM vendite locali** — Traccia clienti con WhatsApp, auto, acquisti e preventivi
 - **Esperto ricambi** — Conosce codici OE, cross-reference, alternative aftermarket
 
 ## Installazione rapida
