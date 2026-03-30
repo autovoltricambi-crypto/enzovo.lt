@@ -1,8 +1,10 @@
 import os
 import json
 import asyncio
+import csv
+from io import BytesIO
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from config import Config
@@ -39,6 +41,12 @@ STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 conversazioni: dict[str, list] = {}
+allegati_sessione: dict[str, list] = {}
+
+UPLOADS_DIR = Path(Config.DATA_DIR) / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+SUPPORTED_EXTENSIONS = {".csv", ".pdf"}
 
 
 def _salva_riepilogo_da_cronologia(session_id: str, cronologia: list) -> None:
@@ -77,10 +85,176 @@ def _ripulisci_cronologia_corrotta(cronologia: list) -> None:
             break
 
 
+def _estrai_testo_csv(raw_bytes: bytes, max_rows: int = 80) -> str:
+    """Estrae un'anteprima testuale da un CSV per darlo in pasto al modello."""
+    decode_error = None
+    contenuto = ""
+    for enc in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            contenuto = raw_bytes.decode(enc)
+            decode_error = None
+            break
+        except Exception as e:
+            decode_error = e
+
+    if decode_error is not None:
+        raise ValueError("Impossibile decodificare il file CSV") from decode_error
+
+    sample = contenuto[:4096]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=";,\t,")
+        sep = dialect.delimiter
+    except Exception:
+        sep = ";" if ";" in sample else ","
+
+    rows = list(csv.reader(contenuto.splitlines(), delimiter=sep))
+    if not rows:
+        return "CSV vuoto."
+
+    header = rows[0]
+    body = rows[1:max_rows + 1]
+    lines = [
+        f"CSV con separatore '{sep}'",
+        f"Colonne ({len(header)}): {', '.join(str(c) for c in header)}",
+        f"Righe totali (escluso header): {max(0, len(rows) - 1)}",
+        "Anteprima righe:",
+    ]
+
+    for idx, row in enumerate(body, start=1):
+        row_txt = " | ".join(str(cell).strip() for cell in row)
+        lines.append(f"{idx}. {row_txt}")
+
+    return "\n".join(lines)
+
+
+def _estrai_testo_pdf(raw_bytes: bytes, max_chars: int = 18000) -> str:
+    """Estrae testo dai PDF con fallback su pagine senza testo."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(BytesIO(raw_bytes))
+    estratti: list[str] = []
+    for i, page in enumerate(reader.pages, start=1):
+        txt = (page.extract_text() or "").strip()
+        if txt:
+            estratti.append(f"--- Pagina {i} ---\n{txt}")
+
+    if not estratti:
+        return (
+            "PDF senza testo estraibile. Potrebbe essere una scansione o contenere solo immagini. "
+            "Se serve OCR, va aggiunto un modulo dedicato."
+        )
+
+    full_text = "\n\n".join(estratti)
+    if len(full_text) > max_chars:
+        full_text = full_text[:max_chars] + "\n\n[... testo PDF troncato ...]"
+    return full_text
+
+
+def _context_allegati_da_iniettare(session_id: str) -> tuple[str, list[int]]:
+    """Ritorna il contesto file non ancora usato in chat per questa sessione."""
+    allegati = allegati_sessione.get(session_id, [])
+    pending = [
+        (i, a)
+        for i, a in enumerate(allegati)
+        if not a.get("usato_in_chat")
+    ]
+    if not pending:
+        return "", []
+
+    blocchi = []
+    idx_pending = []
+    for i, item in pending:
+        idx_pending.append(i)
+        blocchi.append(
+            "\n".join([
+                f"File: {item['filename']}",
+                f"Tipo: {item['type']}",
+                "Contenuto estratto:",
+                item["text"],
+            ])
+        )
+
+    context = (
+        "[CONTESTO FILE ALLEGATI]\n"
+        + "\n\n".join(blocchi)
+        + "\n[Fine contesto allegati]"
+    )
+    return context, idx_pending
+
+
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
     html_path = STATIC_DIR / "index.html"
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.post("/api/upload")
+async def api_upload(session_id: str = Form(...), file: UploadFile = File(...)):
+    if not session_id.strip():
+        return JSONResponse({"errore": "session_id mancante"}, status_code=400)
+
+    filename = (file.filename or "").strip()
+    if not filename:
+        return JSONResponse({"errore": "Nome file non valido"}, status_code=400)
+
+    ext = Path(filename).suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        return JSONResponse(
+            {"errore": "Formato non supportato. Usa solo file CSV o PDF."},
+            status_code=400,
+        )
+
+    raw = await file.read()
+    if not raw:
+        return JSONResponse({"errore": "File vuoto"}, status_code=400)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        return JSONResponse(
+            {"errore": "File troppo grande (max 10MB)"},
+            status_code=400,
+        )
+
+    try:
+        if ext == ".csv":
+            extracted = _estrai_testo_csv(raw)
+            file_type = "csv"
+        else:
+            extracted = _estrai_testo_pdf(raw)
+            file_type = "pdf"
+    except Exception as e:
+        return JSONResponse(
+            {"errore": f"Impossibile leggere il file: {e}"},
+            status_code=400,
+        )
+
+    safe_name = Path(filename).name.replace(" ", "_")
+    ts = asyncio.get_running_loop().time()
+    storage_name = f"{session_id}_{int(ts * 1000)}_{safe_name}"
+    storage_path = UPLOADS_DIR / storage_name
+    storage_path.write_bytes(raw)
+
+    if session_id not in allegati_sessione:
+        allegati_sessione[session_id] = []
+
+    file_id = f"f_{len(allegati_sessione[session_id]) + 1}_{int(ts * 1000)}"
+    allegati_sessione[session_id].append({
+        "id": file_id,
+        "filename": filename,
+        "type": file_type,
+        "size_bytes": len(raw),
+        "path": str(storage_path),
+        "text": extracted,
+        "usato_in_chat": False,
+    })
+
+    preview = extracted[:450] + ("..." if len(extracted) > 450 else "")
+    return JSONResponse({
+        "successo": True,
+        "file_id": file_id,
+        "filename": filename,
+        "tipo": file_type,
+        "dimensione_kb": round(len(raw) / 1024, 1),
+        "preview": preview,
+    })
 
 
 @app.post("/api/chat")
@@ -106,6 +280,16 @@ async def api_chat(request: Request):
     if session_id not in conversazioni:
         conversazioni[session_id] = carica_conversazione(session_id)
 
+    if session_id not in allegati_sessione:
+        allegati_sessione[session_id] = []
+
+    context_allegati, pending_idx = _context_allegati_da_iniettare(session_id)
+    messaggio_input = (
+        f"{context_allegati}\n\nMessaggio utente:\n{messaggio}"
+        if context_allegati
+        else messaggio
+    )
+
     coda: asyncio.Queue = asyncio.Queue()
 
     async def progress_callback(testo: str):
@@ -115,12 +299,16 @@ async def api_chat(request: Request):
         """Esegue la chat in background e mette il risultato finale in coda."""
         try:
             risposta, cronologia = await chat(
-                messaggio,
+                messaggio_input,
                 conversazioni[session_id],
                 progress_callback=progress_callback,
             )
             conversazioni[session_id] = cronologia
             salva_conversazione(session_id, cronologia)
+
+            for i in pending_idx:
+                if i < len(allegati_sessione.get(session_id, [])):
+                    allegati_sessione[session_id][i]["usato_in_chat"] = True
 
             csv_file = None
             if "exports/" in risposta or ".csv" in risposta:
@@ -178,6 +366,7 @@ async def api_reset(request: Request):
     if cron:
         _salva_riepilogo_da_cronologia(session_id, cron)
     conversazioni[session_id] = []
+    allegati_sessione[session_id] = []
     salva_conversazione(session_id, [])
     return JSONResponse({"successo": True})
 

@@ -146,6 +146,36 @@
       align-items: flex-end;
       flex-shrink: 0;
     }
+    #attachments-bar {
+      padding: 8px 16px;
+      background: #fff;
+      border-top: 1px solid #f0f0f0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-height: 40px;
+      align-items: center;
+    }
+    .attachment-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #eef6ff;
+      color: #144d8c;
+      font-size: 0.78rem;
+      border: 1px solid #cfe3fb;
+    }
+    .attachment-chip.pending {
+      background: #fff8e6;
+      color: #7a5600;
+      border-color: #f3dfaa;
+    }
+    #attachments-empty {
+      font-size: 0.78rem;
+      color: #888;
+    }
     #input-area textarea {
       flex:1; padding:9px 13px; border:1px solid #ccc;
       border-radius:10px; resize:none; font-size:0.9rem;
@@ -163,6 +193,17 @@
       border:1px solid #ddd; border-radius:10px; cursor:pointer; font-size:0.8rem;
     }
     #reset-btn:hover { color:#e74c3c; border-color:#e74c3c; }
+    #attach-btn {
+      padding:9px 12px;
+      background:transparent;
+      color:#1a1a2e;
+      border:1px solid #ddd;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:0.82rem;
+      white-space:nowrap;
+    }
+    #attach-btn:hover { border-color:#1a1a2e; background:#f7f8fb; }
 
     /* PANNELLO OBIETTIVI */
     #panel-obiettivi {
@@ -393,8 +434,13 @@
   <!-- CHAT -->
   <div id="panel-chat">
     <div id="chat"></div>
+    <div id="attachments-bar">
+      <span id="attachments-empty">Nessun file allegato. Supportati: CSV, PDF.</span>
+    </div>
     <div id="input-area">
       <textarea id="msg" rows="1" placeholder="Cerca un ricambio, chiedi un prezzo, crea un prodotto..."></textarea>
+      <input id="file-input" type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple style="display:none">
+      <button id="attach-btn" title="Allega file CSV/PDF">Allega</button>
       <button id="reset-btn" title="Nuova conversazione">Reset</button>
       <button id="send-btn">Invia</button>
     </div>
@@ -582,9 +628,57 @@
   const msgInput = document.getElementById('msg');
   const sendBtn = document.getElementById('send-btn');
   const resetBtn = document.getElementById('reset-btn');
+  const attachBtn = document.getElementById('attach-btn');
+  const fileInput = document.getElementById('file-input');
+  const attachmentsBar = document.getElementById('attachments-bar');
 
   const SESSION_ID = 'session_' + Math.random().toString(36).slice(2);
   let progressSteps = [];
+  let uploadedFiles = [];
+
+  function renderAttachments() {
+    if (!uploadedFiles.length) {
+      attachmentsBar.innerHTML = '<span id="attachments-empty">Nessun file allegato. Supportati: CSV, PDF.</span>';
+      return;
+    }
+    attachmentsBar.innerHTML = uploadedFiles.map(f => {
+      const cls = f.pending ? 'attachment-chip pending' : 'attachment-chip';
+      const status = f.pending ? 'in upload...' : (f.tipo || 'file').toUpperCase();
+      return `<span class="${cls}">${escHtml(f.filename)} · ${status}</span>`;
+    }).join('');
+  }
+
+  async function uploadFile(file) {
+    const temp = { filename: file.name, pending: true };
+    uploadedFiles.push(temp);
+    renderAttachments();
+
+    try {
+      const form = new FormData();
+      form.append('session_id', SESSION_ID);
+      form.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.errore || 'Upload non riuscito');
+      }
+
+      temp.pending = false;
+      temp.file_id = data.file_id;
+      temp.tipo = data.tipo;
+      addMsg(`File allegato: ${data.filename} (${data.tipo.toUpperCase()})`, 'progress');
+    } catch (err) {
+      uploadedFiles = uploadedFiles.filter(f => f !== temp);
+      renderAttachments();
+      addMsg('Errore upload file: ' + err.message, 'errore');
+      return;
+    }
+
+    renderAttachments();
+  }
 
   function addMsg(text, tipo) {
     const div = document.createElement('div');
@@ -631,6 +725,12 @@
   async function invia() {
     const testo = msgInput.value.trim();
     if (!testo) return;
+
+    const pendingUpload = uploadedFiles.some(f => f.pending);
+    if (pendingUpload) {
+      addMsg('Attendi: caricamento file in corso...', 'progress');
+      return;
+    }
 
     addMsg(testo, 'utente');
     msgInput.value = '';
@@ -711,6 +811,14 @@
   }
 
   sendBtn.addEventListener('click', invia);
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const files = Array.from(fileInput.files || []);
+    fileInput.value = '';
+    for (const f of files) {
+      await uploadFile(f);
+    }
+  });
   msgInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); invia(); }
   });
@@ -725,6 +833,8 @@
       body: JSON.stringify({ session_id: SESSION_ID }),
     });
     chatEl.innerHTML = '';
+    uploadedFiles = [];
+    renderAttachments();
     addMsg('Conversazione resettata.', 'progress');
   });
 
