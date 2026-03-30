@@ -47,6 +47,12 @@ from tools.wordpress_write import (
     imposta_regola_categorie_blog,
 )
 from tools.cataloghi import cerca_tutti_cataloghi, cerca_catalogo, naviga_web, accedi_portale_b2b
+from tools.design_components import (
+    lista_componenti_premium,
+    genera_blocchi_premium,
+    genera_template_pagina_premium,
+    revisiona_html_premium,
+)
 from tools.prezzi import calcola_prezzo_vendita, scorporo_iva
 from tools.csv_export import esporta_csv, lista_csv_salvati, leggi_csv, modifica_csv, aggiungi_colonna_csv, modifica_csv_bulk
 from tools.web_scraping import analizza_struttura_pagina, estrai_dati_con_playwright
@@ -247,6 +253,85 @@ TOOLS = [
                 "stato": {"type": "string", "enum": ["draft", "publish"]},
             },
             "required": ["page_id", "contenuto_html"],
+        },
+    },
+    {
+        "name": "lista_componenti_premium",
+        "description": (
+            "Elenca la libreria di componenti premium disponibili e i template pagina supportati. "
+            "Usalo prima di costruire home, landing, categoria o scheda prodotto importante."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "genera_blocchi_premium",
+        "description": (
+            "Assembla HTML premium da una lista di componenti riusabili. "
+            "Supporta: hero, trust_strip, stats, feature_grid, split_section, price_box, testimonials, faq, cta_band, product_cards, checklist, logo_cloud. "
+            "Usa questo tool quando vuoi comporre una pagina in modo strutturato invece di scrivere HTML libero da zero."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo_pagina": {"type": "string", "description": "Titolo fallback se l'HTML risultante non contiene un H1."},
+                "componenti": {
+                    "type": "array",
+                    "description": "Lista componenti. Ogni oggetto deve contenere almeno 'tipo' e i campi richiesti da quel componente.",
+                    "items": {"type": "object"},
+                },
+            },
+            "required": ["componenti"],
+        },
+    },
+    {
+        "name": "genera_template_pagina_premium",
+        "description": (
+            "Genera HTML premium da template predefiniti per pagine strategiche. "
+            "Template supportati: home, landing, category, product. "
+            "Questo deve essere il percorso preferito per pagine importanti: genera template, poi revisiona_html_premium, poi crea/scrivi la pagina."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo_pagina": {"type": "string", "enum": ["home", "landing", "category", "product"]},
+                "titolo": {"type": "string"},
+                "sottotitolo": {"type": "string"},
+                "badge": {"type": "string"},
+                "cta_primaria_testo": {"type": "string"},
+                "cta_primaria_url": {"type": "string"},
+                "cta_secondaria_testo": {"type": "string"},
+                "cta_secondaria_url": {"type": "string"},
+                "trust_items": {"type": "array", "items": {"type": "string"}},
+                "benefici": {"type": "array", "items": {"type": "string"}},
+                "cards": {"type": "array", "items": {"type": "object"}},
+                "stats": {"type": "array", "items": {"type": "object"}},
+                "faq": {"type": "array", "items": {"type": "object"}},
+                "testimonials": {"type": "array", "items": {"type": "object"}},
+                "prezzo": {"type": "string"},
+                "prezzo_note": {"type": "string"},
+                "review_label": {"type": "string"},
+                "image_url": {"type": "string"},
+                "image_alt": {"type": "string"},
+                "prodotti_correlati": {"type": "array", "items": {"type": "object"}},
+                "intro_titolo": {"type": "string"},
+                "intro_testo": {"type": "string"}
+            },
+            "required": ["tipo_pagina", "titolo"],
+        },
+    },
+    {
+        "name": "revisiona_html_premium",
+        "description": (
+            "Revisiona HTML di una pagina e assegna punteggi su chiarezza, design, conversione, performance e accessibilita. "
+            "Usalo SEMPRE prima di pubblicare pagine strategiche. Se il punteggio totale e sotto 80, migliora l'HTML e rilancia la review."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "contenuto_html": {"type": "string", "description": "HTML da revisionare."},
+                "tipo_pagina": {"type": "string", "enum": ["home", "landing", "category", "product"]},
+            },
+            "required": ["contenuto_html"],
         },
     },
     {
@@ -1027,6 +1112,14 @@ async def _dispatch_tool(name: str, input_dict: dict) -> dict:
         return await crea_pagina_html(**input_dict)
     elif name == "scrivi_pagina_html":
         return await scrivi_pagina_html(**input_dict)
+    elif name == "lista_componenti_premium":
+        return lista_componenti_premium()
+    elif name == "genera_blocchi_premium":
+        return genera_blocchi_premium(**input_dict)
+    elif name == "genera_template_pagina_premium":
+        return genera_template_pagina_premium(**input_dict)
+    elif name == "revisiona_html_premium":
+        return revisiona_html_premium(**input_dict)
     elif name == "leggi_pagina_html":
         return await leggi_pagina_html(**input_dict)
     elif name == "lista_prodotti":
@@ -1322,6 +1415,12 @@ MAI HTML basico con solo h1+p. Usa le classi del design system (av-hero, av-card
 av-cta, av-badge, av-checklist, av-info, av-warn, av-stats, av-sep, blockquote per callout). \
 Ogni pagina deve essere comprensibile in 3-5 secondi, semanticamente pulita, mobile-first, \
 ad alto contrasto, con palette coerente, CTA specifiche, gerarchia visiva chiara e attenzione a LCP, INP e CLS. \
+Per pagine strategiche NON improvvisare HTML libero come prima scelta: \
+1) usa lista_componenti_premium se ti serve la libreria disponibile, \
+2) usa genera_template_pagina_premium o genera_blocchi_premium per costruire la struttura, \
+3) usa revisiona_html_premium, \
+4) se il punteggio totale e sotto 80 migliora il markup e ripeti la review, \
+5) solo dopo usa crea_pagina_html o scrivi_pagina_html. \
 Il tuo approccio:
 
 - **Hyper focus** — quando ricevi un task ti concentri completamente su quello, senza \

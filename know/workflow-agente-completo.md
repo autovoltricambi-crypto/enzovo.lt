@@ -167,6 +167,73 @@ Per attivare le regole predefinite senza modifiche:
 → imposta_regola_categorie_blog(attiva=True)
 ```
 
+### J. Creare una Pagina HTML Premium con Libreria Componenti
+
+**Template disponibili:**
+- `home`
+- `landing`
+- `category`
+- `product`
+
+**Libreria componenti disponibile:**
+- `hero`
+- `trust_strip`
+- `stats`
+- `feature_grid`
+- `split_section`
+- `price_box`
+- `testimonials`
+- `faq`
+- `cta_band`
+- `product_cards`
+- `checklist`
+- `logo_cloud`
+
+```
+1. L'utente dice: "Crea una home premium" oppure "Rifai una landing"
+2. NON partire da HTML libero se la pagina e strategica.
+3. Prima controlla la libreria disponibile:
+   → lista_componenti_premium()
+4. Se la pagina rientra in un caso standard, genera il template:
+   → genera_template_pagina_premium(
+       tipo_pagina="home",
+       titolo="...",
+       sottotitolo="...",
+       cta_primaria_testo="...",
+       cta_primaria_url="...",
+       trust_items=[...],
+       benefici=[...],
+       cards=[...],
+       faq=[...],
+       testimonials=[...]
+   )
+5. Se serve una struttura custom, componi i blocchi manualmente:
+   → genera_blocchi_premium(componenti=[...])
+6. Prima di scrivere o pubblicare la pagina, fai SEMPRE review:
+   → revisiona_html_premium(contenuto_html=html_generato, tipo_pagina="home")
+7. Se il punteggio totale e < 80, migliora l'HTML e ripeti la review.
+8. Solo dopo la review positiva:
+   → crea_pagina_html(...) oppure scrivi_pagina_html(...)
+```
+
+### K. Regola di Revisione Obbligatoria per Pagine Strategiche
+
+Per queste pagine la review e obbligatoria prima della pubblicazione:
+- homepage
+- landing commerciali
+- pagine categoria importanti
+- pagine prodotto ad alto traffico o ad alta marginalita
+
+**Soglia minima consigliata:**
+- `revisiona_html_premium.punteggio_totale >= 80`
+
+**Blocker da correggere sempre:**
+- mancanza di H1 unico
+- assenza CTA chiara
+- assenza trust signal
+- gerarchia H2 insufficiente
+- immagini senza dimensioni o con problemi evidenti di performance
+
 ---
 
 ## Struttura Blog Auto-Volt (stato marzo 2026)
@@ -246,6 +313,7 @@ codice_prodotto | codice_oem | marca_auto | note
 | Aggiornare prezzi | aggiornamento-prezzi-b2b.md |
 | Lavorare su CSV | csv-workflow.md |
 | Scrivere articolo blog | blog-seo-ricambi.md, seo-on-page.md |
+| Creare pagina HTML premium | workflow-agente-completo.md (sezioni J, K), html-css-basi.md, copywriting-fondamenti.md, ecommerce-funnel.md, seo-tecnico.md |
 | Collegare voce al menu | workflow-agente-completo.md (sezione G) |
 | Creare articolo con auto-categoria | workflow-agente-completo.md (sezione H) |
 | Navigare B2B | azcar-import.md |
