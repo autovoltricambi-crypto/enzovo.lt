@@ -2,17 +2,30 @@
 import json
 import os
 from datetime import datetime
+from uuid import uuid4
 from config import Config
 
 
 def _carica() -> dict:
     """Carica il file memoria.json, crea struttura vuota se non esiste."""
     if not os.path.exists(Config.MEMORIA_PATH):
-        return {"ricerche": [], "prodotti": [], "note": [], "contesto_sito": {}}
+        return {
+            "ricerche": [],
+            "prodotti": [],
+            "note": [],
+            "contesto_sito": {},
+            "clienti_locali": [],
+            "preventivi": [],
+        }
     memoria = json.load(open(Config.MEMORIA_PATH, encoding="utf-8"))
     # Migrazione: aggiunge contesto_sito se mancante
     if "contesto_sito" not in memoria:
         memoria["contesto_sito"] = {}
+    # Migrazione: aggiunge CRM locale se mancante
+    if "clienti_locali" not in memoria:
+        memoria["clienti_locali"] = []
+    if "preventivi" not in memoria:
+        memoria["preventivi"] = []
     return memoria
 
 
@@ -73,6 +86,188 @@ def salva_nota(titolo: str, contenuto: str) -> dict:
     })
     _salva(memoria)
     return {"successo": True, "note_totali": len(memoria["note"])}
+
+
+def _normalizza_whatsapp(whatsapp: str) -> str:
+    """Normalizza il numero WhatsApp mantenendo solo cifre e + iniziale."""
+    value = (whatsapp or "").strip().replace(" ", "")
+    if not value:
+        return ""
+    has_plus = value.startswith("+")
+    digits = "".join(ch for ch in value if ch.isdigit())
+    if not digits:
+        return ""
+    return f"+{digits}" if has_plus else digits
+
+
+def _solo_cifre_whatsapp(whatsapp: str) -> str:
+    """Ritorna solo le cifre del numero WhatsApp per confronti robusti."""
+    return "".join(ch for ch in (whatsapp or "") if ch.isdigit())
+
+
+def _stesso_whatsapp(a: str, b: str) -> bool:
+    """Confronta due numeri WhatsApp ignorando formattazione e +."""
+    a_digits = _solo_cifre_whatsapp(a)
+    b_digits = _solo_cifre_whatsapp(b)
+    return bool(a_digits and b_digits and a_digits == b_digits)
+
+
+def salva_cliente_locale(
+    nome: str,
+    whatsapp: str,
+    auto: list | None = None,
+    acquisti: list | None = None,
+    note: str = "",
+) -> dict:
+    """
+    Crea o aggiorna un cliente locale con contatto WhatsApp, veicoli e storico acquisti.
+    Se il numero WhatsApp esiste già, aggiorna la scheda esistente.
+    """
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    if not whatsapp_norm:
+        return {"errore": "Numero WhatsApp non valido"}
+
+    auto = [a.strip() for a in (auto or []) if str(a).strip()]
+    acquisti = [a for a in (acquisti or []) if a]
+
+    cliente = None
+    for c in memoria["clienti_locali"]:
+        if _stesso_whatsapp(c.get("whatsapp", ""), whatsapp_norm):
+            cliente = c
+            break
+
+    now = datetime.now().isoformat()
+    if cliente is None:
+        cliente = {
+            "cliente_id": uuid4().hex[:8],
+            "nome": nome.strip(),
+            "whatsapp": whatsapp_norm,
+            "auto": auto,
+            "acquisti": acquisti,
+            "note": note.strip(),
+            "creato_il": now,
+            "aggiornato_il": now,
+        }
+        memoria["clienti_locali"].append(cliente)
+        azione = "creato"
+    else:
+        if nome.strip():
+            cliente["nome"] = nome.strip()
+        if note.strip():
+            cliente["note"] = note.strip()
+        if auto:
+            cliente["auto"] = sorted(set((cliente.get("auto") or []) + auto))
+        if acquisti:
+            cliente["acquisti"] = (cliente.get("acquisti") or []) + acquisti
+        cliente["aggiornato_il"] = now
+        azione = "aggiornato"
+
+    _salva(memoria)
+    return {
+        "successo": True,
+        "azione": azione,
+        "cliente_id": cliente["cliente_id"],
+        "whatsapp": cliente["whatsapp"],
+    }
+
+
+def aggiorna_acquisto_cliente(
+    whatsapp: str,
+    descrizione_acquisto: str,
+    auto: str | None = None,
+    importo: float | None = None,
+) -> dict:
+    """Aggiunge uno storico acquisto alla scheda cliente (ricambi venduti localmente)."""
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    cliente = next((c for c in memoria["clienti_locali"] if _stesso_whatsapp(c.get("whatsapp", ""), whatsapp_norm)), None)
+    if not cliente:
+        return {"errore": f"Cliente con WhatsApp '{whatsapp}' non trovato"}
+
+    entry = {
+        "data": datetime.now().isoformat(),
+        "descrizione": descrizione_acquisto,
+    }
+    if auto:
+        entry["auto"] = auto
+        cliente["auto"] = sorted(set((cliente.get("auto") or []) + [auto]))
+    if importo is not None:
+        entry["importo"] = float(importo)
+
+    cliente["acquisti"] = (cliente.get("acquisti") or []) + [entry]
+    cliente["aggiornato_il"] = datetime.now().isoformat()
+    _salva(memoria)
+    return {"successo": True, "cliente_id": cliente["cliente_id"], "acquisti_totali": len(cliente["acquisti"])}
+
+
+def registra_preventivo(
+    whatsapp: str,
+    descrizione: str,
+    auto: str | None = None,
+    importo: float | None = None,
+    stato: str = "inviato",
+) -> dict:
+    """
+    Registra un preventivo cliente.
+    Stato consigliato: bozza | inviato | accettato | rifiutato.
+    """
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    if not whatsapp_norm:
+        return {"errore": "Numero WhatsApp non valido"}
+
+    cliente = next((c for c in memoria["clienti_locali"] if _stesso_whatsapp(c.get("whatsapp", ""), whatsapp_norm)), None)
+    preventivo = {
+        "preventivo_id": uuid4().hex[:10],
+        "cliente_id": cliente.get("cliente_id") if cliente else None,
+        "whatsapp": whatsapp_norm,
+        "auto": auto,
+        "descrizione": descrizione,
+        "importo": float(importo) if importo is not None else None,
+        "stato": stato,
+        "data": datetime.now().isoformat(),
+    }
+    memoria["preventivi"].append(preventivo)
+    _salva(memoria)
+    return {
+        "successo": True,
+        "preventivo_id": preventivo["preventivo_id"],
+        "cliente_collegato": bool(cliente),
+    }
+
+
+def lista_clienti_locali(query: str | None = None) -> dict:
+    """Elenca i clienti locali; query opzionale su nome/numero/auto/acquisti."""
+    memoria = _carica()
+    clienti = memoria.get("clienti_locali", [])
+    if query:
+        q = query.lower()
+        clienti = [c for c in clienti if q in json.dumps(c, ensure_ascii=False).lower()]
+    return {"totale": len(clienti), "clienti": clienti}
+
+
+def lista_preventivi(stato: str | None = None, whatsapp: str | None = None) -> dict:
+    """Elenca preventivi con filtri opzionali per stato e cliente WhatsApp."""
+    memoria = _carica()
+    preventivi = memoria.get("preventivi", [])
+    if stato:
+        preventivi = [p for p in preventivi if p.get("stato") == stato]
+    if whatsapp:
+        whatsapp_norm = _normalizza_whatsapp(whatsapp)
+        preventivi = [p for p in preventivi if _stesso_whatsapp(p.get("whatsapp", ""), whatsapp_norm)]
+    return {"totale": len(preventivi), "preventivi": preventivi}
+
+
+def scheda_cliente(whatsapp: str) -> dict:
+    """Ritorna la scheda completa cliente con eventuali preventivi associati."""
+    memoria = _carica()
+    whatsapp_norm = _normalizza_whatsapp(whatsapp)
+    cliente = next((c for c in memoria["clienti_locali"] if _stesso_whatsapp(c.get("whatsapp", ""), whatsapp_norm)), None)
+    if not cliente:
+        return {"trovato": False, "errore": f"Cliente con WhatsApp '{whatsapp}' non trovato"}
+    preventivi = [p for p in memoria.get("preventivi", []) if _stesso_whatsapp(p.get("whatsapp", ""), whatsapp_norm)]
+    return {"trovato": True, "cliente": cliente, "preventivi": preventivi}
 
 
 def aggiorna_contesto_sito(chiave: str, valore: str) -> dict:
@@ -266,6 +461,8 @@ def statistiche_memoria() -> dict:
         "ricerche": len(memoria.get("ricerche", [])),
         "prodotti": len(memoria.get("prodotti", [])),
         "note": len(memoria.get("note", [])),
+        "clienti_locali": len(memoria.get("clienti_locali", [])),
+        "preventivi": len(memoria.get("preventivi", [])),
         "file": Config.MEMORIA_PATH,
         "esiste": os.path.exists(Config.MEMORIA_PATH),
     }
